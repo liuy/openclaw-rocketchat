@@ -1,6 +1,6 @@
-# 🔒 Security Model & Credential Management
+[Home](../README.en.md) · [Guide](GUIDE.en.md) · [FAQ](FAQ.en.md) · [Configuration](CONFIGURATION.en.md) · [Architecture](ARCHITECTURE.en.md) · [Security](SECURITY.en.md)
 
-> [← Back to main documentation](../README.en.md)
+# 🔒 Security Model & Credential Management
 
 This document covers the security design, credential lifecycle, and backup/restore mechanism of the openclaw-rocketchat plugin.
 

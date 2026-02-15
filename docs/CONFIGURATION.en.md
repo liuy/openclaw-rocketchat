@@ -1,6 +1,6 @@
-# Configuration Reference
+[Home](../README.en.md) · [Guide](GUIDE.en.md) · [FAQ](FAQ.en.md) · [Configuration](CONFIGURATION.en.md) · [Architecture](ARCHITECTURE.en.md) · [Security](SECURITY.en.md)
 
-[← Back to README](../README.en.md) · [Security & Credentials](SECURITY.en.md)
+# Configuration Reference
 
 All config is written automatically by CLI commands into `~/.openclaw/openclaw.json`. You normally don't need to edit it manually, but understanding the structure helps with troubleshooting and advanced customization.
 

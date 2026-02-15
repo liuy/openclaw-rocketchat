@@ -1,6 +1,6 @@
-# 配置参数详解
+[首页](../README.md) · [使用指南](GUIDE.md) · [常见问题](FAQ.md) · [配置参数](CONFIGURATION.md) · [架构](ARCHITECTURE.md) · [安全](SECURITY.md)
 
-[← 返回主页](../README.md) · [安全与凭据](SECURITY.md)
+# 配置参数详解
 
 所有配置由 CLI 命令自动写入 `~/.openclaw/openclaw.json`。通常你不需要手动编辑，但了解配置结构有助于排查问题和高级自定义。
 

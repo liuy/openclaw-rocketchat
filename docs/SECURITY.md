@@ -1,6 +1,6 @@
-# 🔒 安全模型与凭据管理
+[首页](../README.md) · [使用指南](GUIDE.md) · [常见问题](FAQ.md) · [配置参数](CONFIGURATION.md) · [架构](ARCHITECTURE.md) · [安全](SECURITY.md)
 
-> [← 返回主文档](../README.md)
+# 🔒 安全模型与凭据管理
 
 本文档介绍 openclaw-rocketchat 插件的安全设计、凭据生命周期和备份恢复机制。
 

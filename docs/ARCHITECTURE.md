@@ -1,6 +1,6 @@
-# 架构与对比
+[首页](../README.md) · [使用指南](GUIDE.md) · [常见问题](FAQ.md) · [配置参数](CONFIGURATION.md) · [架构](ARCHITECTURE.md) · [安全](SECURITY.md)
 
-[← 返回主页](../README.md)
+# 架构与对比
 
 ## 和其他方案的对比
 
