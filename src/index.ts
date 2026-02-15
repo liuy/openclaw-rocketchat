@@ -1,5 +1,5 @@
 // ============================================================
-// openclaw-rocketchat 插件入口
+// rocketchat 插件入口 (npm: openclaw-rocketchat)
 // 注册频道、CLI 命令、后台服务
 // ============================================================
 
@@ -394,7 +394,7 @@ export default function register(api: any): void {
     id: "rocketchat-channel",
     start: async () => {
       // 直接从配置文件读取 channels.rocketchat，不依赖 api.pluginConfig
-      // （OpenClaw 框架可能因 plugin id 不匹配而无法正确传递 pluginConfig）
+      // （确保兼容性：不依赖框架的 pluginConfig 传递机制）
       const { ConfigWriter } = await import("./config/writer.js");
       const cw = new ConfigWriter(getConfigPath());
       await cw.readConfig();

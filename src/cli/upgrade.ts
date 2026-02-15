@@ -111,9 +111,11 @@ export async function upgradeCommand(configPath: string): Promise<void> {
       (b: any) => b.match?.channel === "rocketchat",
     );
 
-    // 备份 plugins.installs 记录
+    // 备份 plugins.installs 记录（兼容新旧键名）
     savedPluginInstall =
-      config.plugins?.installs?.["openclaw-rocketchat"] || null;
+      config.plugins?.installs?.["rocketchat"]
+      || config.plugins?.installs?.["openclaw-rocketchat"]
+      || null;
 
     if (savedChannelConfig) {
       success(
