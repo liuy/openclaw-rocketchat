@@ -198,24 +198,51 @@ export class MessageHandler {
     }
 
     // execFileAsync 不走 shell，参数不会被 shell 解析，注入风险极低
-    await execFileAsync(
-      "openclaw",
-      [
-        "message",
-        "send",
-        "--channel",
-        "rocketchat",
-        "--account",
-        accountId,
-        "--target",
-        roomId,
-        "--sender",
-        senderId,
-        "-m",
-        text,
-      ],
-      { timeout: 30000 },
-    );
+    const args = [
+      "message",
+      "send",
+      "--channel",
+      "rocketchat",
+      "--account",
+      accountId,
+      "--target",
+      roomId,
+      "-m",
+      text,
+    ];
+
+    // 尝试传递 sender 信息（如果 CLI 版本不支持 --from，忽略即可）
+    if (senderId) {
+      args.push("--from", senderId);
+    }
+
+    try {
+      await execFileAsync("openclaw", args, { timeout: 30000 });
+    } catch (err: unknown) {
+      const msg = (err as Error).message || "";
+      // 如果是 --from 不支持，降级为不传 sender 重试
+      if (msg.includes("unknown option") && msg.includes("--from")) {
+        this.logger.info("CLI 不支持 --from，降级重试（不含 sender）");
+        await execFileAsync(
+          "openclaw",
+          [
+            "message",
+            "send",
+            "--channel",
+            "rocketchat",
+            "--account",
+            accountId,
+            "--target",
+            roomId,
+            "-m",
+            text,
+          ],
+          { timeout: 30000 },
+        );
+      } else {
+        throw err;
+      }
+    }
   }
 
   // ----------------------------------------------------------

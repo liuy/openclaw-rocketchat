@@ -212,21 +212,22 @@ export default function register(api: any): void {
   api.registerService({
     id: "rocketchat-channel",
     start: async () => {
-      const pluginConfig = api.pluginConfig ?? {};
+      // 直接从配置文件读取 channels.rocketchat，不依赖 api.pluginConfig
+      // （OpenClaw 框架可能因 plugin id 不匹配而无法正确传递 pluginConfig）
+      const { ConfigWriter } = await import("./config/writer.js");
+      const cw = new ConfigWriter(getConfigPath());
+      await cw.readConfig();
+      const rcConfig = cw.getRocketchatConfig();
 
-      if (!pluginConfig.enabled) {
+      if (!rcConfig?.enabled) {
         logger.info("Rocket.Chat 未启用，后台服务不启动");
         return;
       }
 
-      // 读取 bindings 传给服务，用于正确解析 agentId
-      const { ConfigWriter } = await import("./config/writer.js");
-      const cw = new ConfigWriter(getConfigPath());
-      await cw.readConfig();
       const bindings = cw.getRocketchatBindings();
 
       channelService = new ChannelService({
-        config: pluginConfig,
+        config: rcConfig,
         bindings,
         logger,
       });
