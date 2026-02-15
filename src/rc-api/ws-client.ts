@@ -68,7 +68,9 @@ export class RocketChatWsClient {
     return new Promise((resolve, reject) => {
       const wsUrl = `${this.serverUrl}/websocket`;
 
-      this.ws = new WebSocket(wsUrl);
+      this.ws = new WebSocket(wsUrl, {
+        rejectUnauthorized: false, // 支持自签名证书
+      });
 
       this.ws.on("open", () => {
         // DDP 握手

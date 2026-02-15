@@ -199,7 +199,7 @@ Rocket.Chat 官方客户端下载：[rocket.chat/download-apps](https://www.rock
 | **macOS** | [Mac App Store](https://apps.apple.com/app/rocket-chat/id1148741252) 或 [官网下载 .dmg](https://www.rocket.chat/download-apps) |
 | **Windows** | [官网下载安装包](https://www.rocket.chat/download-apps) |
 | **Linux** | [官网下载](https://www.rocket.chat/download-apps)（支持 .deb / .rpm / Snap） |
-| **Web 端** | 无需下载，浏览器直接访问 `http://你的IP:3000` |
+| **Web 端** | 无需下载，浏览器直接访问 `https://你的IP` |
 
 > 💡 **搜索技巧**：在 App Store / Google Play 中搜索 "Rocket.Chat"，认准开发者为 **Rocket.Chat Technologies Corp**。
 
@@ -237,7 +237,7 @@ Rocket.Chat 官方客户端下载：[rocket.chat/download-apps](https://www.rock
 
 - [OpenClaw](https://docs.openclaw.ai/) 已安装
 - 一台有**公网 IP** 的服务器（阿里云、腾讯云、AWS 等均可）
-- 防火墙/安全组已放行 **3000 端口**（或你自定义的端口）
+- 防火墙/安全组已放行 **443 端口**（HTTPS）
 
 ### 第一步：部署 Rocket.Chat
 
@@ -253,17 +253,30 @@ bash install-rc.sh
 curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
 ```
 
+脚本会自动完成以下工作：
+- 检测并安装 Docker（如果没有）
+- 部署 Rocket.Chat + MongoDB + Nginx（全部 Docker 容器）
+- 生成 HTTPS 自签名证书
+- 禁用邮箱二次验证（自建服务器无邮件服务）
+- Rocket.Chat 仅内部通信，**不暴露 3000 端口到公网**
+
 你会看到：
 
 ```
-╔══════════════════════════════════════════════════╗
-║   Rocket.Chat 一键安装（OpenClaw 远程部署专用）     ║
-╚══════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════╗
+║   Rocket.Chat 一键安装（HTTPS + OpenClaw 专用）       ║
+╚══════════════════════════════════════════════════════╝
 
   ⏳ 检测 Docker...
   ✅ Docker 已安装 (v29.2.1)
   ✅ Docker Compose 已安装 (v5.0.2)
-  ✅ 端口 3000 可用
+  ✅ 端口 443 可用
+  ⏳ 获取服务器公网 IP...
+  ✅ 公网 IP: 123.45.67.89
+  ⏳ 生成 HTTPS 自签名证书...
+  ✅ 证书已生成（有效期 10 年）
+  ⏳ 生成 Nginx 配置...
+  ✅ Nginx 配置已生成
   ⏳ 生成 docker-compose.yml...
   ✅ 配置文件已生成
   ⏳ 拉取镜像并启动容器（首次约 2-5 分钟）...
@@ -273,10 +286,11 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 ║              🎉 Rocket.Chat 安装完成！                    ║
 ╚══════════════════════════════════════════════════════════╝
 
-  服务器地址: http://123.45.67.89:3000
+  服务器地址: https://123.45.67.89
+  HTTPS:      自签名证书（App 首次连接时信任即可）
 
   📌 接下来的步骤：
-     1️⃣  确保防火墙已放行端口 3000
+     1️⃣  确保防火墙已放行端口 443
      2️⃣  回到你的 OpenClaw 机器，安装插件并配置：
          openclaw plugins install openclaw-rocketchat
          openclaw rocketchat setup
@@ -284,7 +298,6 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
          openclaw rocketchat add-bot
 ```
 
-> 指定端口：`RC_PORT=4000 bash install-rc.sh`
 > Docker 没装？脚本会自动安装。
 
 ### 第二步：安装插件 + 配置连接
@@ -302,10 +315,10 @@ openclaw rocketchat setup
 === Rocket.Chat 配置向导 ===
 
 Rocket.Chat 服务器地址
-  （本机部署填 http://127.0.0.1:3000，远程填 http://公网IP:端口）
-  [默认 http://127.0.0.1:3000]: http://123.45.67.89:3000
+  （本机部署填 https://127.0.0.1，远程填 https://公网IP）
+  [默认 https://127.0.0.1]: https://123.45.67.89
 
-  ⏳ 测试连接 http://123.45.67.89:3000 ...
+  ⏳ 测试连接 https://123.45.67.89 ...
   ✅ 连接成功！Rocket.Chat 版本: 8.1.0
 
 管理员账号
@@ -315,6 +328,7 @@ Rocket.Chat 服务器地址
 
   ⏳ 创建管理员（内部使用，你不需要记住）...
   已自动关闭公开注册（安全）
+  已禁用邮箱二次验证
   ✅ 管理员已创建
 
 创建你的手机登录账号
@@ -333,9 +347,12 @@ Rocket.Chat 服务器地址
 
   📱 手机操作：
      1. App Store 搜索下载 "Rocket.Chat"
-     2. 打开 App，服务器填: http://123.45.67.89:3000
+     2. 打开 App，服务器填: https://123.45.67.89
+        首次连接会提示证书不受信任，点「信任」或「继续」即可
      3. 用户名: zhangsan
      4. 密码: 你设置的密码
+
+  🔥 重要：请确保服务器防火墙已放行端口 443
 
   💡 下一步: 运行以下命令添加第一个机器人
      openclaw rocketchat add-bot
@@ -382,8 +399,8 @@ openclaw rocketchat add-bot
 1. 下载 Rocket.Chat App
    - **iPhone**：App Store 搜索 **"Rocket.Chat"**
    - **Android**：Google Play 搜索 **"Rocket.Chat"**，或从 [官网](https://www.rocket.chat/download-apps) 下载 APK
-   - **电脑**：[官网下载桌面客户端](https://www.rocket.chat/download-apps)，或直接浏览器访问 `http://你的IP:3000`
-2. 打开 App，点击 **"Add Server"**，输入服务器地址：`http://你的公网IP:3000`
+   - **电脑**：[官网下载桌面客户端](https://www.rocket.chat/download-apps)，或直接浏览器访问 `https://你的IP`
+2. 打开 App，点击 **"Add Server"**，输入服务器地址：`https://你的公网IP`（首次连接信任自签名证书即可）
 3. 用第二步设置的用户名和密码登录
 4. 找到第三步创建的机器人，发消息，开聊！
 
@@ -403,18 +420,16 @@ openclaw rocketchat add-bot
 ```bash
 # SSH 登录你的 VPS 后，一键安装：
 curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
-
-# 或者指定端口：
-RC_PORT=4000 bash install-rc.sh
 ```
 
 脚本会自动：
 - 检测并安装 Docker（如未安装）
-- 拉取 Rocket.Chat + MongoDB 镜像
+- 部署 Rocket.Chat + MongoDB + Nginx（HTTPS）
+- 生成自签名证书
 - 启动服务并等待就绪
-- 输出服务器地址和后续步骤
+- 输出 `https://公网IP` 地址和后续步骤
 
-安装完成后，回到你的 OpenClaw 机器运行 `openclaw rocketchat setup`，输入 VPS 上输出的地址即可。
+安装完成后，回到你的 OpenClaw 机器运行 `openclaw rocketchat setup`，输入 `https://VPS公网IP` 即可。
 
 </details>
 
@@ -476,9 +491,9 @@ openclaw rocketchat add-user
   ✅ 用户 lisi 已创建（全功能）
      权限: ✅ 全功能
      已加入: AI全能群
-     登录: http://123.45.67.89:3000 / 用户名: lisi
+     登录: https://123.45.67.89 / 用户名: lisi
 
-  📱 告诉 lisi 下载 Rocket.Chat App，服务器填 http://123.45.67.89:3000
+  📱 告诉 lisi 下载 Rocket.Chat App，服务器填 https://123.45.67.89
      用上面的用户名密码登录后，即可：
      - 在「AI全能群」里和团队一起跟 AI 讨论
      - 直接私聊任意机器人，进行一对一 AI 对话
@@ -565,7 +580,7 @@ openclaw rocketchat status
 ```
 === Rocket.Chat 状态 ===
 
-  服务器:     运行中 - http://123.45.67.89:3000
+  服务器:     运行中 - https://123.45.67.89
   MongoDB:    运行中
 
 用户
@@ -594,7 +609,7 @@ openclaw rocketchat uninstall
 
 | 命令 | 说明 |
 |---|---|
-| `openclaw rocketchat setup` | 连接 Rocket.Chat + 创建管理员 + 创建手机账号 |
+| `openclaw rocketchat setup` | 连接 Rocket.Chat (HTTPS) + 创建管理员 + 创建手机账号 |
 | `openclaw rocketchat add-bot` | 添加机器人 + 绑定 Agent + 建立私聊 |
 | `openclaw rocketchat add-group` | 创建私有频道（多机器人群组） |
 | `openclaw rocketchat add-user` | 添加手机登录用户 |
@@ -627,7 +642,7 @@ openclaw rocketchat uninstall
   channels: {
     rocketchat: {
       enabled: true,
-      serverUrl: "http://192.168.1.100:3000",
+      serverUrl: "https://123.45.67.89",
       accounts: {
         molty: { botUsername: "molty", botDisplayName: "小龙虾" },
         "work-claw": { botUsername: "work-claw", botDisplayName: "工作助手" },
@@ -651,22 +666,27 @@ openclaw rocketchat uninstall
 │              📱 用户手机                      │
 │           Rocket.Chat App                    │
 └─────────────┬───────────────────────────────┘
-              │ HTTP (公网IP:3000)
+              │ HTTPS (:443)
 ┌─────────────▼───────────────────────────────┐
 │         你的公网服务器（一台机器搞定）          │
 │                                              │
-│  ┌─────────────────┐  ┌──────────────────┐  │
-│  │  Rocket.Chat    │  │  OpenClaw Gateway │  │
-│  │  (Docker)       │  │                   │  │
-│  │                 │◄─┤  @openclaw/       │  │
-│  │  ┌───────────┐  │  │  rocketchat       │  │
-│  │  │ MongoDB   │  │  │  plugin           │  │
-│  │  └───────────┘  │  │                   │  │
-│  └─────────────────┘  │  ┌─────────────┐  │  │
-│                        │  │ Agent: main │  │  │
-│                        │  │ Agent: work │  │  │
-│                        │  └─────────────┘  │  │
-│                        └──────────────────┘  │
+│  ┌──────────────────────────────────────┐   │
+│  │  Docker                               │   │
+│  │  ┌───────┐  ┌──────────┐  ┌───────┐  │   │
+│  │  │ Nginx │─▸│Rocket.Chat│─▸│MongoDB│  │   │
+│  │  │ :443  │  │  :3000   │  │       │  │   │
+│  │  │(HTTPS)│  │ (内部)    │  │       │  │   │
+│  │  └───────┘  └──────────┘  └───────┘  │   │
+│  └──────────────────────────────────────┘   │
+│                                              │
+│  ┌──────────────────────────────────────┐   │
+│  │  OpenClaw Gateway                     │   │
+│  │  @openclaw/rocketchat plugin          │   │
+│  │  ┌─────────────┐                     │   │
+│  │  │ Agent: main │                     │   │
+│  │  │ Agent: work │                     │   │
+│  │  └─────────────┘                     │   │
+│  └──────────────────────────────────────┘   │
 └──────────────────────────────────────────────┘
 ```
 
@@ -679,28 +699,27 @@ RC 在公网 VPS，OpenClaw 在家庭内网或低配机器。适合没有公网 
 │              📱 用户手机                      │
 │           Rocket.Chat App                    │
 └─────────────┬───────────────────────────────┘
-              │ HTTP (公网IP:3000)
+              │ HTTPS (:443)
 ┌─────────────▼───────────────────────────────┐
 │       公网 VPS（便宜的小鸡即可，1C1G 够用）    │
 │                                              │
-│  ┌─────────────────┐                         │
-│  │  Rocket.Chat    │  ← 用 install-rc.sh    │
-│  │  (Docker)       │    一键安装              │
-│  │  ┌───────────┐  │                         │
-│  │  │ MongoDB   │  │                         │
-│  │  └───────────┘  │                         │
-│  └────────▲────────┘                         │
-└───────────┼──────────────────────────────────┘
-            │ HTTP/WebSocket (公网)
-┌───────────┼──────────────────────────────────┐
+│  ┌──────────────────────────────────────┐   │
+│  │  Docker（install-rc.sh 一键安装）      │   │
+│  │  ┌───────┐  ┌──────────┐  ┌───────┐  │   │
+│  │  │ Nginx │─▸│Rocket.Chat│─▸│MongoDB│  │   │
+│  │  │ :443  │  │  :3000   │  │       │  │   │
+│  │  │(HTTPS)│  │ (内部)    │  │       │  │   │
+│  │  └───────┘  └─────▲────┘  └───────┘  │   │
+│  └───────────────────┼──────────────────┘   │
+└──────────────────────┼───────────────────────┘
+                       │ HTTPS/WebSocket (公网)
+┌──────────────────────┼───────────────────────┐
 │       家庭内网 / 本地电脑                      │
-│           │                                   │
-│  ┌────────┴─────────────────────────────┐    │
+│                      │                        │
+│  ┌───────────────────┴──────────────────┐    │
 │  │  OpenClaw Gateway                     │    │
-│  │                                       │    │
 │  │  @openclaw/rocketchat plugin          │    │
 │  │  （通过公网连接远程 RC）                │    │
-│  │                                       │    │
 │  │  ┌─────────────┐                      │    │
 │  │  │ Agent: main │                      │    │
 │  │  │ Agent: work │                      │    │
@@ -709,7 +728,7 @@ RC 在公网 VPS，OpenClaw 在家庭内网或低配机器。适合没有公网 
 └───────────────────────────────────────────────┘
 ```
 
-> 方式 B 中，远程 VPS 上只需运行 `install-rc.sh` 脚本即可安装 Rocket.Chat，然后回到本地 OpenClaw 运行 `openclaw rocketchat setup` 选择"连接远程服务器"。
+> 方式 B 中，远程 VPS 上只需运行 `install-rc.sh` 脚本即可安装 Rocket.Chat（含 Nginx HTTPS），然后回到本地 OpenClaw 运行 `openclaw rocketchat setup` 输入 `https://公网IP`。
 
 ## 常见问题
 
@@ -820,6 +839,16 @@ cd ~/rocketchat && docker compose restart
 cd ~/rocketchat && docker compose down -v
 ```
 
+</details>
+
+<details>
+<summary><b>自签名证书安全吗？App 提示"不受信任"怎么办？</b></summary>
+
+自签名证书的加密强度和正规证书完全一样（RSA 2048），只是没有经过第三方 CA 认证。对于自建服务器，这完全够用。
+
+App 首次连接时会提示"证书不受信任"，点「信任」或「继续」即可。之后不会再提示。
+
+如果你有域名，也可以用 Let's Encrypt 替换自签名证书获得"绿锁"。
 </details>
 
 <details>

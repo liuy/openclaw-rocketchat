@@ -26,6 +26,11 @@ export class RocketChatRestClient {
   constructor(serverUrl: string) {
     // 去掉末尾斜杠
     this.serverUrl = serverUrl.replace(/\/+$/, "");
+
+    // 自签名证书支持：对 HTTPS 连接忽略 TLS 验证
+    if (this.serverUrl.startsWith("https://")) {
+      process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
+    }
   }
 
   // ----------------------------------------------------------

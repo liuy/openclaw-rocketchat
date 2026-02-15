@@ -47,15 +47,14 @@ export async function setupCommand(configPath: string): Promise<void> {
   console.log("");
   info("  本机部署:   bash install-rc.sh");
   info("  远程 VPS:   SSH 到 VPS 上运行 bash install-rc.sh");
-  info("  指定端口:   RC_PORT=4000 bash install-rc.sh");
   console.log("");
 
   // ----------------------------------------------------------
   // 1. 输入服务器地址
   // ----------------------------------------------------------
   const serverUrl = await ask(
-    "Rocket.Chat 服务器地址\n  （本机部署填 http://127.0.0.1:3000，远程填 http://公网IP:端口）",
-    "http://127.0.0.1:3000",
+    "Rocket.Chat 服务器地址\n  （本机部署填 https://127.0.0.1，远程填 https://公网IP）",
+    "https://127.0.0.1",
   );
 
   if (!serverUrl) {
@@ -271,10 +270,15 @@ async function createAdminAccount(
       });
       rc.setAuth(adminResult.userId, adminResult.authToken);
 
-      // 安全措施：关闭公开注册
+      // 安全措施：关闭公开注册 + 禁用邮箱二次验证
       try {
         await rc.setSetting("Accounts_RegistrationForm", "Disabled");
         info("已自动关闭公开注册（安全）");
+      } catch {
+        // 忽略
+      }
+      try {
+        await rc.setSetting("Accounts_TwoFactorAuthentication_By_Email_Enabled", false);
       } catch {
         // 忽略
       }
@@ -334,13 +338,19 @@ async function createAdminAccount(
       password: savedPassword,
     });
 
-    // 安全措施：注册完管理员后，自动禁用公开注册
+    // 安全措施：注册完管理员后，自动禁用公开注册 + 禁用邮箱二次验证
     rc.setAuth(adminResult.userId, adminResult.authToken);
     try {
       await rc.setSetting("Accounts_RegistrationForm", "Disabled");
       info("已自动关闭公开注册（安全）");
     } catch {
       warn("无法自动关闭公开注册，建议在 RC 管理后台手动禁用");
+    }
+    try {
+      await rc.setSetting("Accounts_TwoFactorAuthentication_By_Email_Enabled", false);
+      info("已禁用邮箱二次验证");
+    } catch {
+      // 忽略
     }
 
     success("管理员已创建");
@@ -381,9 +391,10 @@ async function createPersonalAccount(
 }
 
 /** 打印完成横幅 */
-function printFinishBanner(serverUrl: string, username: string, port: number): void {
+function printFinishBanner(serverUrl: string, username: string, _port: number): void {
   // 如果是 localhost/127.0.0.1，提醒用户手机要用公网 IP
   const isLocal = /localhost|127\.0\.0\.1/.test(serverUrl);
+  const isHttps = serverUrl.startsWith("https://");
 
   console.log("");
   console.log("╔══════════════════════════════════════════╗");
@@ -393,18 +404,21 @@ function printFinishBanner(serverUrl: string, username: string, port: number): v
   info("📱 手机操作：");
   info(`   1. App Store 搜索下载 "Rocket.Chat"`);
   if (isLocal) {
-    info(`   2. 打开 App，服务器填: http://你的公网IP:${port}`);
+    info(`   2. 打开 App，服务器填: https://你的公网IP`);
     info("      （手机不能用 127.0.0.1，需要填服务器的公网 IP）");
   } else {
     info(`   2. 打开 App，服务器填: ${serverUrl}`);
+  }
+  if (isHttps) {
+    info("      首次连接会提示证书不受信任，点「信任」或「继续」即可");
   }
   if (username) {
     info(`   3. 用户名: ${username}`);
     info("   4. 密码: 你设置的密码");
   }
   console.log("");
-  info("🔥 重要：请确保服务器防火墙已放行端口 " + port);
-  info(`   阿里云/腾讯云用户请在安全组中添加 TCP ${port} 端口规则`);
+  info("🔥 重要：请确保服务器防火墙已放行端口 443");
+  info("   阿里云/腾讯云用户请在安全组中添加 TCP 443 端口规则");
   console.log("");
   info("💡 下一步: 运行以下命令添加第一个机器人");
   info("   openclaw rocketchat add-bot");

@@ -98,7 +98,7 @@ When OpenClaw sends you a message, you get a notification from **Rocket.Chat** �
 
 - Rocket.Chat App is **directly downloadable** from China App Store / Google Play
 - Server runs on your own machine — **no cross-border traffic**
-- Phone connects directly via IP — **no domain, no SSL, no ICP registration needed**
+- Phone connects directly via IP — **no domain, no ICP registration needed**
 - Zero dependency on blocked services
 
 ### 5. ⚡ One-Command Deployment, Two Modes
@@ -199,7 +199,7 @@ Official Rocket.Chat clients: [rocket.chat/download-apps](https://www.rocket.cha
 | **macOS** | [Mac App Store](https://apps.apple.com/app/rocket-chat/id1148741252) or [download .dmg](https://www.rocket.chat/download-apps) |
 | **Windows** | [Download installer](https://www.rocket.chat/download-apps) |
 | **Linux** | [Download](https://www.rocket.chat/download-apps) (.deb / .rpm / Snap) |
-| **Web** | No download needed — open `http://YOUR_IP:3000` in any browser |
+| **Web** | No download needed — open `https://YOUR_IP` in any browser |
 
 > 💡 **Search tip**: In App Store / Google Play, search "Rocket.Chat" and look for the developer **Rocket.Chat Technologies Corp**.
 
@@ -237,7 +237,7 @@ Deploy once, access from phone, computer, tablet, or browser. Messages sync acro
 
 - [OpenClaw](https://docs.openclaw.ai/) installed
 - A server with a **public IP** (AWS, DigitalOcean, etc.)
-- Firewall / security group allows **port 3000** (or your custom port)
+- Firewall / security group allows **port 443** (HTTPS)
 
 ### Step 1: Deploy Rocket.Chat
 
@@ -253,17 +253,30 @@ Or install remotely without downloading first:
 curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
 ```
 
+The script will automatically:
+- Detect and install Docker (if not present)
+- Deploy Rocket.Chat + MongoDB + Nginx (all Docker containers)
+- Generate a self-signed HTTPS certificate
+- Disable email two-factor auth (no mail server on self-hosted)
+- Rocket.Chat communicates internally only — **port 3000 is not exposed to the public**
+
 You'll see:
 
 ```
-╔══════════════════════════════════════════════════╗
-║   Rocket.Chat One-Click Install                  ║
-╚══════════════════════════════════════════════════╝
+╔══════════════════════════════════════════════════════════╗
+║   Rocket.Chat One-Click Install (HTTPS + OpenClaw)       ║
+╚══════════════════════════════════════════════════════════╝
 
   ⏳ Detecting Docker...
   ✅ Docker installed (v29.2.1)
   ✅ Docker Compose installed (v5.0.2)
-  ✅ Port 3000 available
+  ✅ Port 443 available
+  ⏳ Getting server public IP...
+  ✅ Public IP: 123.45.67.89
+  ⏳ Generating self-signed HTTPS certificate...
+  ✅ Certificate generated (valid for 10 years)
+  ⏳ Generating Nginx config...
+  ✅ Nginx config generated
   ⏳ Generating docker-compose.yml...
   ✅ Config generated
   ⏳ Pulling images & starting (first time ~2-5 min)...
@@ -273,10 +286,11 @@ You'll see:
 ║              🎉 Rocket.Chat installed!                    ║
 ╚══════════════════════════════════════════════════════════╝
 
-  Server address: http://123.45.67.89:3000
+  Server address: https://123.45.67.89
+  HTTPS:          Self-signed certificate (trust it on first App connection)
 
   📌 Next steps:
-     1️⃣  Make sure firewall allows port 3000
+     1️⃣  Make sure firewall allows port 443
      2️⃣  On your OpenClaw machine, install plugin and configure:
          openclaw plugins install openclaw-rocketchat
          openclaw rocketchat setup
@@ -284,7 +298,6 @@ You'll see:
          openclaw rocketchat add-bot
 ```
 
-> Custom port: `RC_PORT=4000 bash install-rc.sh`
 > No Docker? The script auto-installs it.
 
 ### Step 2: Install Plugin + Configure Connection
@@ -302,10 +315,10 @@ You'll see:
 === Rocket.Chat Setup Wizard ===
 
 Rocket.Chat server address
-  (local: http://127.0.0.1:3000, remote: http://PUBLIC_IP:PORT)
-  [default http://127.0.0.1:3000]: http://123.45.67.89:3000
+  (local: https://127.0.0.1, remote: https://PUBLIC_IP)
+  [default https://127.0.0.1]: https://123.45.67.89
 
-  ⏳ Testing connection to http://123.45.67.89:3000 ...
+  ⏳ Testing connection to https://123.45.67.89 ...
   ✅ Connected! Rocket.Chat version: 8.1.0
 
 Admin account
@@ -315,6 +328,7 @@ Choose: 1
 
   ⏳ Creating admin (internal, you don't need to remember)...
   Public registration disabled (secure)
+  Email two-factor auth disabled
   ✅ Admin created
 
 Create your phone login account
@@ -333,9 +347,12 @@ Confirm:  ********
 
   📱 Phone setup:
      1. Download "Rocket.Chat" from App Store
-     2. Server address: http://123.45.67.89:3000
+     2. Open the app, server address: https://123.45.67.89
+        First connection will warn about untrusted certificate — tap "Trust" or "Continue"
      3. Username: zhangsan
      4. Password: the one you just set
+
+  🔥 Important: Make sure your server firewall allows port 443
 
   💡 Next: openclaw rocketchat add-bot
 ```
@@ -382,8 +399,8 @@ Bind to which Agent?
 1. Download Rocket.Chat App
    - **iPhone**: Search **"Rocket.Chat"** on App Store
    - **Android**: Search **"Rocket.Chat"** on Google Play, or download APK from the [official site](https://www.rocket.chat/download-apps)
-   - **Desktop**: [Download desktop client](https://www.rocket.chat/download-apps), or open `http://YOUR_IP:3000` in your browser
-2. Open the app, tap **"Add Server"**, enter: `http://YOUR_PUBLIC_IP:3000`
+   - **Desktop**: [Download desktop client](https://www.rocket.chat/download-apps), or open `https://YOUR_IP` in your browser
+2. Open the app, tap **"Add Server"**, enter: `https://YOUR_PUBLIC_IP` (trust the self-signed certificate on first connection)
 3. Login with the credentials from Step 1
 4. Find the bot, send a message, start chatting!
 
@@ -403,18 +420,16 @@ If you chose Mode B (split deployment), run on your remote VPS:
 ```bash
 # SSH into your VPS, then one-click install:
 curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
-
-# Or specify a custom port:
-RC_PORT=4000 bash install-rc.sh
 ```
 
 The script will automatically:
 - Detect and install Docker (if not present)
-- Pull Rocket.Chat + MongoDB images
+- Deploy Rocket.Chat + MongoDB + Nginx (HTTPS)
+- Generate a self-signed certificate
 - Start services and wait until ready
-- Output the server address and next steps
+- Output the `https://PUBLIC_IP` address and next steps
 
-After installation, go back to your OpenClaw machine and run `openclaw rocketchat setup`, choose "Connect to remote server", and enter the address output by the script.
+After installation, go back to your OpenClaw machine and run `openclaw rocketchat setup`, enter `https://VPS_PUBLIC_IP`.
 
 </details>
 
@@ -476,9 +491,9 @@ Join existing groups?
   ✅ User lisi created (full access)
      Permission: ✅ Full access
      Joined: AI Squad
-     Login: http://123.45.67.89:3000 / Username: lisi
+     Login: https://123.45.67.89 / Username: lisi
 
-  📱 Tell lisi to download Rocket.Chat App, server: http://123.45.67.89:3000
+  📱 Tell lisi to download Rocket.Chat App, server: https://123.45.67.89
      Login with the username and password above, then:
      - Discuss with AI together in "AI Squad" group
      - DM any bot directly for one-on-one AI conversations
@@ -565,7 +580,7 @@ openclaw rocketchat status
 ```
 === Rocket.Chat Status ===
 
-  Server:     Running - http://123.45.67.89:3000
+  Server:     Running - https://123.45.67.89
   MongoDB:    Running
 
 Users
@@ -594,7 +609,7 @@ openclaw rocketchat uninstall
 
 | Command | Description |
 |---|---|
-| `openclaw rocketchat setup` | Connect to Rocket.Chat + create admin + create phone account |
+| `openclaw rocketchat setup` | Connect to Rocket.Chat (HTTPS) + create admin + create phone account |
 | `openclaw rocketchat add-bot` | Add bot + bind Agent + create DM |
 | `openclaw rocketchat add-group` | Create private channel (multi-bot group) |
 | `openclaw rocketchat add-user` | Add phone login user |
@@ -604,6 +619,41 @@ openclaw rocketchat uninstall
 | `openclaw rocketchat uninstall` | Uninstall Rocket.Chat |
 
 All commands are **interactive** — no flags to memorize, just follow the prompts.
+
+## Config Example
+
+All config is written automatically by CLI commands into `openclaw.json` — you don't need to edit it manually:
+
+```json5
+{
+  // Agents are managed by openclaw agents add (plugin doesn't touch these)
+  agents: {
+    list: [
+      { id: "main", default: true },
+      { id: "work", name: "Work Helper" },
+    ],
+  },
+
+  // Everything below is written automatically by plugin CLI commands
+  bindings: [
+    { agentId: "main", match: { channel: "rocketchat", accountId: "molty" } },
+    { agentId: "work", match: { channel: "rocketchat", accountId: "work-claw" } },
+  ],
+  channels: {
+    rocketchat: {
+      enabled: true,
+      serverUrl: "https://123.45.67.89",
+      accounts: {
+        molty: { botUsername: "molty", botDisplayName: "Lobster" },
+        "work-claw": { botUsername: "work-claw", botDisplayName: "Work Helper" },
+      },
+      groups: {
+        "AI Squad": { requireMention: false, bots: ["molty", "work-claw"] },
+      },
+    },
+  },
+}
+```
 
 ## Architecture
 
@@ -616,22 +666,27 @@ Everything on one server — simplest setup.
 │              📱 Your Phone                   │
 │           Rocket.Chat App                    │
 └─────────────┬───────────────────────────────┘
-              │ HTTP (Public IP:3000)
+              │ HTTPS (:443)
 ┌─────────────▼───────────────────────────────┐
 │       Your Server (one machine does it all)  │
 │                                              │
-│  ┌─────────────────┐  ┌──────────────────┐  │
-│  │  Rocket.Chat    │  │  OpenClaw Gateway │  │
-│  │  (Docker)       │  │                   │  │
-│  │                 │◄─┤  @openclaw/       │  │
-│  │  ┌───────────┐  │  │  rocketchat       │  │
-│  │  │ MongoDB   │  │  │  plugin           │  │
-│  │  └───────────┘  │  │                   │  │
-│  └─────────────────┘  │  ┌─────────────┐  │  │
-│                        │  │ Agent: main │  │  │
-│                        │  │ Agent: work │  │  │
-│                        │  └─────────────┘  │  │
-│                        └──────────────────┘  │
+│  ┌──────────────────────────────────────┐   │
+│  │  Docker                               │   │
+│  │  ┌───────┐  ┌──────────┐  ┌───────┐  │   │
+│  │  │ Nginx │─▸│Rocket.Chat│─▸│MongoDB│  │   │
+│  │  │ :443  │  │  :3000   │  │       │  │   │
+│  │  │(HTTPS)│  │(internal)│  │       │  │   │
+│  │  └───────┘  └──────────┘  └───────┘  │   │
+│  └──────────────────────────────────────┘   │
+│                                              │
+│  ┌──────────────────────────────────────┐   │
+│  │  OpenClaw Gateway                     │   │
+│  │  @openclaw/rocketchat plugin          │   │
+│  │  ┌─────────────┐                     │   │
+│  │  │ Agent: main │                     │   │
+│  │  │ Agent: work │                     │   │
+│  │  └─────────────┘                     │   │
+│  └──────────────────────────────────────┘   │
 └──────────────────────────────────────────────┘
 ```
 
@@ -644,25 +699,25 @@ RC on a cloud VPS, OpenClaw on home network or low-spec machine. Great when you 
 │              📱 Your Phone                   │
 │           Rocket.Chat App                    │
 └─────────────┬───────────────────────────────┘
-              │ HTTP (Public IP:3000)
+              │ HTTPS (:443)
 ┌─────────────▼───────────────────────────────┐
 │    Cloud VPS (cheap 1C1G is enough)          │
 │                                              │
-│  ┌─────────────────┐                         │
-│  │  Rocket.Chat    │  ← install-rc.sh       │
-│  │  (Docker)       │    one-click install    │
-│  │  ┌───────────┐  │                         │
-│  │  │ MongoDB   │  │                         │
-│  │  └───────────┘  │                         │
-│  └────────▲────────┘                         │
-└───────────┼──────────────────────────────────┘
-            │ HTTP/WebSocket (public network)
-┌───────────┼──────────────────────────────────┐
+│  ┌──────────────────────────────────────┐   │
+│  │  Docker (install-rc.sh one-click)     │   │
+│  │  ┌───────┐  ┌──────────┐  ┌───────┐  │   │
+│  │  │ Nginx │─▸│Rocket.Chat│─▸│MongoDB│  │   │
+│  │  │ :443  │  │  :3000   │  │       │  │   │
+│  │  │(HTTPS)│  │(internal)│  │       │  │   │
+│  │  └───────┘  └─────▲────┘  └───────┘  │   │
+│  └───────────────────┼──────────────────┘   │
+└──────────────────────┼───────────────────────┘
+                       │ HTTPS/WebSocket (public network)
+┌──────────────────────┼───────────────────────┐
 │       Home Network / Local Machine            │
-│           │                                   │
-│  ┌────────┴─────────────────────────────┐    │
+│                      │                        │
+│  ┌───────────────────┴──────────────────┐    │
 │  │  OpenClaw Gateway                     │    │
-│  │                                       │    │
 │  │  @openclaw/rocketchat plugin          │    │
 │  │  (connects to remote RC via internet) │    │
 │  │                                       │    │
@@ -674,7 +729,7 @@ RC on a cloud VPS, OpenClaw on home network or low-spec machine. Great when you 
 └───────────────────────────────────────────────┘
 ```
 
-> For Mode B, just run `install-rc.sh` on your remote VPS to install Rocket.Chat, then run `openclaw rocketchat setup` locally and choose "Connect to remote server".
+> For Mode B, just run `install-rc.sh` on your remote VPS to install Rocket.Chat (with Nginx HTTPS), then run `openclaw rocketchat setup` locally and enter `https://PUBLIC_IP`.
 
 ## FAQ
 
@@ -785,6 +840,16 @@ cd ~/rocketchat && docker compose restart
 cd ~/rocketchat && docker compose down -v
 ```
 
+</details>
+
+<details>
+<summary><b>Are self-signed certificates secure? The app says "untrusted" — what do I do?</b></summary>
+
+Self-signed certificates have the same encryption strength as regular certificates (RSA 2048) — the only difference is they're not verified by a third-party CA. For a self-hosted server, this is perfectly fine.
+
+The app will warn about an "untrusted certificate" on first connection — tap "Trust" or "Continue". It won't ask again after that.
+
+If you have a domain name, you can replace the self-signed certificate with Let's Encrypt to get the "green lock".
 </details>
 
 <details>
