@@ -98,7 +98,7 @@ When OpenClaw sends you a message, you get a notification from **Rocket.Chat** �
 
 - Rocket.Chat App is **directly downloadable** from China App Store / Google Play
 - Server runs on your own machine — **no cross-border traffic**
-- Phone connects directly via IP — **no domain, no ICP registration needed**
+- Auto **sslip.io free domain** + auto **Let's Encrypt HTTPS cert** — no domain purchase, no ICP registration needed
 - Zero dependency on blocked services
 
 ### 5. ⚡ One-Command Deployment, Two Modes
@@ -199,7 +199,7 @@ Official Rocket.Chat clients: [rocket.chat/download-apps](https://www.rocket.cha
 | **macOS** | [Mac App Store](https://apps.apple.com/app/rocket-chat/id1148741252) or [download .dmg](https://www.rocket.chat/download-apps) |
 | **Windows** | [Download installer](https://www.rocket.chat/download-apps) |
 | **Linux** | [Download](https://www.rocket.chat/download-apps) (.deb / .rpm / Snap) |
-| **Web** | No download needed — open `https://YOUR_IP` in any browser |
+| **Web** | No download needed — open `https://YOUR-IP.sslip.io` in any browser |
 
 > 💡 **Search tip**: In App Store / Google Play, search "Rocket.Chat" and look for the developer **Rocket.Chat Technologies Corp**.
 
@@ -256,7 +256,8 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 The script will automatically:
 - Detect and install Docker (if not present)
 - Deploy Rocket.Chat + MongoDB + Nginx (all Docker containers)
-- Generate a self-signed HTTPS certificate
+- Auto-configure **sslip.io free domain** (e.g. `123-45-67-89.sslip.io`)
+- Prioritize **Let's Encrypt real HTTPS cert**; fall back to self-signed if unavailable
 - Disable email two-factor auth (no mail server on self-hosted)
 - Rocket.Chat communicates internally only — **port 3000 is not exposed to the public**
 
@@ -273,8 +274,9 @@ You'll see:
   ✅ Port 443 available
   ⏳ Getting server public IP...
   ✅ Public IP: 123.45.67.89
-  ⏳ Generating self-signed HTTPS certificate...
-  ✅ Certificate generated (valid for 10 years)
+  ⏳ Configuring sslip.io domain: 123-45-67-89.sslip.io
+  ⏳ Requesting Let's Encrypt certificate...
+  ✅ Let's Encrypt certificate obtained! (auto-renew enabled)
   ⏳ Generating Nginx config...
   ✅ Nginx config generated
   ⏳ Generating docker-compose.yml...
@@ -286,8 +288,9 @@ You'll see:
 ║              🎉 Rocket.Chat installed!                    ║
 ╚══════════════════════════════════════════════════════════╝
 
-  Server address: https://123.45.67.89
-  HTTPS:          Self-signed certificate (trust it on first App connection)
+  Domain:  123-45-67-89.sslip.io (auto-configured via sslip.io)
+  Address: https://123-45-67-89.sslip.io
+  HTTPS:   ✅ Let's Encrypt certificate (trusted, zero warnings)
 
   📌 Next steps:
      1️⃣  Make sure firewall allows port 443
@@ -315,10 +318,10 @@ You'll see:
 === Rocket.Chat Setup Wizard ===
 
 Rocket.Chat server address
-  (local: https://127.0.0.1, remote: https://PUBLIC_IP)
-  [default https://127.0.0.1]: https://123.45.67.89
+  (local: https://127.0.0.1, remote: https://IP.sslip.io)
+  [default https://127.0.0.1]: https://123-45-67-89.sslip.io
 
-  ⏳ Testing connection to https://123.45.67.89 ...
+  ⏳ Testing connection to https://123-45-67-89.sslip.io ...
   ✅ Connected! Rocket.Chat version: 8.1.0
 
 Admin account
@@ -347,8 +350,8 @@ Confirm:  ********
 
   📱 Phone setup:
      1. Download "Rocket.Chat" from App Store
-     2. Open the app, server address: https://123.45.67.89
-        First connection will warn about untrusted certificate — tap "Trust" or "Continue"
+     2. Open the app, server address: https://123-45-67-89.sslip.io
+        HTTPS cert is trusted — no warnings, connects directly
      3. Username: zhangsan
      4. Password: the one you just set
 
@@ -399,8 +402,8 @@ Bind to which Agent?
 1. Download Rocket.Chat App
    - **iPhone**: Search **"Rocket.Chat"** on App Store
    - **Android**: Search **"Rocket.Chat"** on Google Play, or download APK from the [official site](https://www.rocket.chat/download-apps)
-   - **Desktop**: [Download desktop client](https://www.rocket.chat/download-apps), or open `https://YOUR_IP` in your browser
-2. Open the app, tap **"Add Server"**, enter: `https://YOUR_PUBLIC_IP` (trust the self-signed certificate on first connection)
+   - **Desktop**: [Download desktop client](https://www.rocket.chat/download-apps), or open `https://YOUR-IP.sslip.io` in your browser
+2. Open the app, tap **"Add Server"**, enter: `https://YOUR-IP.sslip.io`
 3. Login with the credentials from Step 1
 4. Find the bot, send a message, start chatting!
 
@@ -425,11 +428,11 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 The script will automatically:
 - Detect and install Docker (if not present)
 - Deploy Rocket.Chat + MongoDB + Nginx (HTTPS)
-- Generate a self-signed certificate
+- Auto-configure **sslip.io free domain** + request **Let's Encrypt** cert (falls back to self-signed)
 - Start services and wait until ready
-- Output the `https://PUBLIC_IP` address and next steps
+- Output the `https://VPS-IP.sslip.io` address and next steps
 
-After installation, go back to your OpenClaw machine and run `openclaw rocketchat setup`, enter `https://VPS_PUBLIC_IP`.
+After installation, go back to your OpenClaw machine and run `openclaw rocketchat setup`, enter `https://VPS-IP.sslip.io`.
 
 </details>
 
@@ -491,9 +494,9 @@ Join existing groups?
   ✅ User lisi created (full access)
      Permission: ✅ Full access
      Joined: AI Squad
-     Login: https://123.45.67.89 / Username: lisi
+     Login: https://123-45-67-89.sslip.io / Username: lisi
 
-  📱 Tell lisi to download Rocket.Chat App, server: https://123.45.67.89
+  📱 Tell lisi to download Rocket.Chat App, server: https://123-45-67-89.sslip.io
      Login with the username and password above, then:
      - Discuss with AI together in "AI Squad" group
      - DM any bot directly for one-on-one AI conversations
@@ -580,7 +583,7 @@ openclaw rocketchat status
 ```
 === Rocket.Chat Status ===
 
-  Server:     Running - https://123.45.67.89
+  Server:     Running - https://123-45-67-89.sslip.io
   MongoDB:    Running
 
 Users
@@ -642,7 +645,7 @@ All config is written automatically by CLI commands into `openclaw.json` — you
   channels: {
     rocketchat: {
       enabled: true,
-      serverUrl: "https://123.45.67.89",
+      serverUrl: "https://123-45-67-89.sslip.io",
       accounts: {
         molty: { botUsername: "molty", botDisplayName: "Lobster" },
         "work-claw": { botUsername: "work-claw", botDisplayName: "Work Helper" },
@@ -729,7 +732,7 @@ RC on a cloud VPS, OpenClaw on home network or low-spec machine. Great when you 
 └───────────────────────────────────────────────┘
 ```
 
-> For Mode B, just run `install-rc.sh` on your remote VPS to install Rocket.Chat (with Nginx HTTPS), then run `openclaw rocketchat setup` locally and enter `https://PUBLIC_IP`.
+> For Mode B, just run `install-rc.sh` on your remote VPS to install Rocket.Chat (with Nginx HTTPS + auto sslip.io domain), then run `openclaw rocketchat setup` locally and enter `https://VPS-IP.sslip.io`.
 
 ## FAQ
 
@@ -843,13 +846,37 @@ cd ~/rocketchat && docker compose down -v
 </details>
 
 <details>
-<summary><b>Are self-signed certificates secure? The app says "untrusted" — what do I do?</b></summary>
+<summary><b>What is sslip.io? Why don't I need to buy a domain?</b></summary>
 
-Self-signed certificates have the same encryption strength as regular certificates (RSA 2048) — the only difference is they're not verified by a third-party CA. For a self-hosted server, this is perfectly fine.
+[sslip.io](https://sslip.io) is a free wildcard DNS service that embeds IP addresses directly into domain names. For example:
 
-The app will warn about an "untrusted certificate" on first connection — tap "Trust" or "Continue". It won't ask again after that.
+- `166-88-11-59.sslip.io` automatically resolves to `166.88.11.59`
+- `10-0-0-1.sslip.io` automatically resolves to `10.0.0.1`
 
-If you have a domain name, you can replace the self-signed certificate with Let's Encrypt to get the "green lock".
+This means **any server with a public IP gets a free domain instantly** — no registration, no DNS configuration, no annual fees.
+
+Because sslip.io gives you a real domain name, the install script can request a **real Let's Encrypt HTTPS certificate**. Your phone app connects with a trusted "green lock" — zero warnings, zero manual trust steps.
+
+sslip.io is:
+- **Free** — no cost, no sign-up, no account needed
+- **Instant** — works immediately for any IP address
+- **Maintained by the open-source community** — [source code on GitHub](https://github.com/cunnie/sslip.io)
+- **Reliable** — backed by multiple DNS servers worldwide
+
+</details>
+
+<details>
+<summary><b>What about self-signed certificates? The app says "untrusted"</b></summary>
+
+Self-signed certificates are now only a **fallback**. The install script first tries to obtain a **Let's Encrypt certificate** via sslip.io. In most cases this succeeds and your app connects with zero warnings.
+
+Self-signed certificates are only used when Let's Encrypt is unavailable (e.g. port 80 blocked, rate limits, or network issues). If you do end up with a self-signed cert:
+
+- It has the same encryption strength as a regular certificate (RSA 2048)
+- The app will warn about an "untrusted certificate" on first connection — tap "Trust" or "Continue"
+- It won't ask again after that
+
+You can re-run the install script later to retry Let's Encrypt once the issue is resolved.
 </details>
 
 <details>

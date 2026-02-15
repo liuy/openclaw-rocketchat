@@ -98,7 +98,8 @@ AI 大脑（OpenClaw Agent）
 
 - Rocket.Chat App 在中国区 App Store / Google Play **可直接下载**
 - 服务器部署在你自己的机器上，**不经过任何境外服务**
-- 手机直连服务器 IP，**不需要域名、不需要 SSL、不需要备案**
+- 自动通过 [sslip.io](https://sslip.io) 获取**免费域名**（无需购买、无需备案）
+- 自动获取 **Let's Encrypt 正式 HTTPS 证书**（App 直连，零警告）
 - 不依赖任何被墙的服务
 
 ### 5. ⚡ 一条命令部署，两种部署模式
@@ -199,7 +200,7 @@ Rocket.Chat 官方客户端下载：[rocket.chat/download-apps](https://www.rock
 | **macOS** | [Mac App Store](https://apps.apple.com/app/rocket-chat/id1148741252) 或 [官网下载 .dmg](https://www.rocket.chat/download-apps) |
 | **Windows** | [官网下载安装包](https://www.rocket.chat/download-apps) |
 | **Linux** | [官网下载](https://www.rocket.chat/download-apps)（支持 .deb / .rpm / Snap） |
-| **Web 端** | 无需下载，浏览器直接访问 `https://你的IP` |
+| **Web 端** | 无需下载，浏览器直接访问你的服务器地址（如 `https://123-45-67-89.sslip.io`） |
 
 > 💡 **搜索技巧**：在 App Store / Google Play 中搜索 "Rocket.Chat"，认准开发者为 **Rocket.Chat Technologies Corp**。
 
@@ -237,7 +238,7 @@ Rocket.Chat 官方客户端下载：[rocket.chat/download-apps](https://www.rock
 
 - [OpenClaw](https://docs.openclaw.ai/) 已安装
 - 一台有**公网 IP** 的服务器（阿里云、腾讯云、AWS 等均可）
-- 防火墙/安全组已放行 **443 端口**（HTTPS）
+- 防火墙/安全组已放行 **443 端口**（HTTPS）和 **80 端口**（Let's Encrypt 证书验证需要）
 
 ### 第一步：部署 Rocket.Chat
 
@@ -256,7 +257,8 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 脚本会自动完成以下工作：
 - 检测并安装 Docker（如果没有）
 - 部署 Rocket.Chat + MongoDB + Nginx（全部 Docker 容器）
-- 生成 HTTPS 自签名证书
+- 通过 [sslip.io](https://sslip.io) 自动获取**免费域名**（如 `166-88-11-59.sslip.io`，无需购买）
+- 优先用 Let's Encrypt 获取**正式 HTTPS 证书**（App 直连零警告），失败时自动回退到自签名证书
 - 禁用邮箱二次验证（自建服务器无邮件服务）
 - Rocket.Chat 仅内部通信，**不暴露 3000 端口到公网**
 
@@ -273,8 +275,9 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
   ✅ 端口 443 可用
   ⏳ 获取服务器公网 IP...
   ✅ 公网 IP: 123.45.67.89
-  ⏳ 生成 HTTPS 自签名证书...
-  ✅ 证书已生成（有效期 10 年）
+  ℹ 域名: 123-45-67-89.sslip.io（通过 sslip.io 免费提供）
+  ⏳ 尝试获取 Let's Encrypt 免费证书...
+  ✅ Let's Encrypt 证书获取成功！（自动续期）
   ⏳ 生成 Nginx 配置...
   ✅ Nginx 配置已生成
   ⏳ 生成 docker-compose.yml...
@@ -286,8 +289,9 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 ║              🎉 Rocket.Chat 安装完成！                    ║
 ╚══════════════════════════════════════════════════════════╝
 
-  服务器地址: https://123.45.67.89
-  HTTPS:      自签名证书（App 首次连接时信任即可）
+  服务器地址: https://123-45-67-89.sslip.io
+  HTTPS:      Let's Encrypt 正式证书（自动续期）
+  域名:       123-45-67-89.sslip.io（由 sslip.io 免费提供，无需购买）
 
   📌 接下来的步骤：
      1️⃣  确保防火墙已放行端口 443
@@ -316,9 +320,9 @@ openclaw rocketchat setup
 
 Rocket.Chat 服务器地址
   （本机部署填 https://127.0.0.1，远程填 https://公网IP）
-  [默认 https://127.0.0.1]: https://123.45.67.89
+  [默认 https://127.0.0.1]: https://123-45-67-89.sslip.io
 
-  ⏳ 测试连接 https://123.45.67.89 ...
+  ⏳ 测试连接 https://123-45-67-89.sslip.io ...
   ✅ 连接成功！Rocket.Chat 版本: 8.1.0
 
 管理员账号
@@ -347,8 +351,7 @@ Rocket.Chat 服务器地址
 
   📱 手机操作：
      1. App Store 搜索下载 "Rocket.Chat"
-     2. 打开 App，服务器填: https://123.45.67.89
-        首次连接会提示证书不受信任，点「信任」或「继续」即可
+     2. 打开 App，服务器填: https://123-45-67-89.sslip.io
      3. 用户名: zhangsan
      4. 密码: 你设置的密码
 
@@ -399,8 +402,8 @@ openclaw rocketchat add-bot
 1. 下载 Rocket.Chat App
    - **iPhone**：App Store 搜索 **"Rocket.Chat"**
    - **Android**：Google Play 搜索 **"Rocket.Chat"**，或从 [官网](https://www.rocket.chat/download-apps) 下载 APK
-   - **电脑**：[官网下载桌面客户端](https://www.rocket.chat/download-apps)，或直接浏览器访问 `https://你的IP`
-2. 打开 App，点击 **"Add Server"**，输入服务器地址：`https://你的公网IP`（首次连接信任自签名证书即可）
+   - **电脑**：[官网下载桌面客户端](https://www.rocket.chat/download-apps)，或直接浏览器访问服务器地址
+2. 打开 App，点击 **"Add Server"**，输入 install-rc.sh 输出的服务器地址（如 `https://123-45-67-89.sslip.io`）
 3. 用第二步设置的用户名和密码登录
 4. 找到第三步创建的机器人，发消息，开聊！
 
@@ -425,11 +428,11 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 脚本会自动：
 - 检测并安装 Docker（如未安装）
 - 部署 Rocket.Chat + MongoDB + Nginx（HTTPS）
-- 生成自签名证书
+- 通过 sslip.io 获取免费域名 + 优先申请 Let's Encrypt 正式证书
 - 启动服务并等待就绪
-- 输出 `https://公网IP` 地址和后续步骤
+- 输出 `https://VPS-IP.sslip.io` 地址和后续步骤
 
-安装完成后，回到你的 OpenClaw 机器运行 `openclaw rocketchat setup`，输入 `https://VPS公网IP` 即可。
+安装完成后，回到你的 OpenClaw 机器运行 `openclaw rocketchat setup`，输入脚本输出的 `https://xxx.sslip.io` 地址即可。
 
 </details>
 
@@ -491,9 +494,9 @@ openclaw rocketchat add-user
   ✅ 用户 lisi 已创建（全功能）
      权限: ✅ 全功能
      已加入: AI全能群
-     登录: https://123.45.67.89 / 用户名: lisi
+     登录: https://123-45-67-89.sslip.io / 用户名: lisi
 
-  📱 告诉 lisi 下载 Rocket.Chat App，服务器填 https://123.45.67.89
+  📱 告诉 lisi 下载 Rocket.Chat App，服务器填 https://123-45-67-89.sslip.io
      用上面的用户名密码登录后，即可：
      - 在「AI全能群」里和团队一起跟 AI 讨论
      - 直接私聊任意机器人，进行一对一 AI 对话
@@ -580,7 +583,7 @@ openclaw rocketchat status
 ```
 === Rocket.Chat 状态 ===
 
-  服务器:     运行中 - https://123.45.67.89
+  服务器:     运行中 - https://123-45-67-89.sslip.io
   MongoDB:    运行中
 
 用户
@@ -642,7 +645,7 @@ openclaw rocketchat uninstall
   channels: {
     rocketchat: {
       enabled: true,
-      serverUrl: "https://123.45.67.89",
+      serverUrl: "https://123-45-67-89.sslip.io",
       accounts: {
         molty: { botUsername: "molty", botDisplayName: "小龙虾" },
         "work-claw": { botUsername: "work-claw", botDisplayName: "工作助手" },
@@ -842,13 +845,27 @@ cd ~/rocketchat && docker compose down -v
 </details>
 
 <details>
+<summary><b>sslip.io 是什么？为什么不需要买域名？</b></summary>
+
+[sslip.io](https://sslip.io) 是一个免费的通配符 DNS 服务。它把 IP 地址嵌入域名中，自动解析回该 IP：
+
+- `166-88-11-59.sslip.io` → 解析到 `166.88.11.59`
+
+这样你就有了一个"域名"，可以配合 Let's Encrypt 获取**正式的 HTTPS 证书**，手机 App 直连零警告。
+
+- 完全免费，无需注册，无需配置
+- 由开源社区维护，Google、IBM 等文档中也在使用
+- 如果 sslip.io 不可用（极罕见），脚本会自动回退到自签名证书
+</details>
+
+<details>
 <summary><b>自签名证书安全吗？App 提示"不受信任"怎么办？</b></summary>
 
-自签名证书的加密强度和正规证书完全一样（RSA 2048），只是没有经过第三方 CA 认证。对于自建服务器，这完全够用。
+正常情况下 install-rc.sh 会自动获取 Let's Encrypt 正式证书，App 直连不会有任何警告。
 
-App 首次连接时会提示"证书不受信任"，点「信任」或「继续」即可。之后不会再提示。
+只有在 Let's Encrypt 获取失败时（如 80 端口被占用），才会回退到自签名证书。此时 App 首次连接会提示"证书不受信任"，点「信任」或「继续」即可。
 
-如果你有域名，也可以用 Let's Encrypt 替换自签名证书获得"绿锁"。
+自签名证书的加密强度和正规证书完全一样（RSA 2048），只是没有经过第三方 CA 认证。
 </details>
 
 <details>
