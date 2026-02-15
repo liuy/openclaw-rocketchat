@@ -25,6 +25,9 @@
 
 set -euo pipefail
 
+# 确保在有效目录中（避免当前目录被删除后 getcwd 报错）
+cd "$HOME" 2>/dev/null || cd /tmp
+
 # 解析参数
 FORCE_INSTALL=false
 for arg in "$@"; do
@@ -277,16 +280,53 @@ else
 fi
 
 # 5b. 安装 acme.sh（如果未安装）
+#     方式 1: 官方安装脚本（get.acme.sh）
+#     方式 2: GitHub 直接克隆
+#     方式 3: Gitee 镜像（中国大陆加速）
 ACME_SH="$HOME/.acme.sh/acme.sh"
 if [[ ! -f "$ACME_SH" ]]; then
   step "安装 acme.sh..."
-  curl -fsSL https://get.acme.sh | sh -s email=openclaw@openclaw.local 2>&1 | tail -3
+
+  # 方式 1: 官方安装脚本
+  info "尝试方式 1: 官方安装脚本..."
+  curl -fsSL https://get.acme.sh | sh -s email=openclaw@openclaw.local 2>/dev/null
   source "$HOME/.acme.sh/acme.sh.env" 2>/dev/null || true
+
+  # 方式 2: GitHub 直接克隆
+  if [[ ! -f "$ACME_SH" ]]; then
+    warn "官方脚本安装失败，尝试 GitHub 克隆..."
+    rm -rf /tmp/acme.sh
+    if git clone --depth 1 https://github.com/acmesh-official/acme.sh.git /tmp/acme.sh 2>/dev/null; then
+      cd /tmp/acme.sh
+      ./acme.sh --install -m openclaw@openclaw.local 2>/dev/null
+      cd - >/dev/null
+      rm -rf /tmp/acme.sh
+      source "$HOME/.acme.sh/acme.sh.env" 2>/dev/null || true
+    fi
+  fi
+
+  # 方式 3: Gitee 镜像（中国大陆加速）
+  if [[ ! -f "$ACME_SH" ]]; then
+    warn "GitHub 克隆失败，尝试 Gitee 镜像..."
+    rm -rf /tmp/acme.sh
+    if git clone --depth 1 https://gitee.com/neilpang/acme.sh.git /tmp/acme.sh 2>/dev/null; then
+      cd /tmp/acme.sh
+      ./acme.sh --install -m openclaw@openclaw.local 2>/dev/null
+      cd - >/dev/null
+      rm -rf /tmp/acme.sh
+      source "$HOME/.acme.sh/acme.sh.env" 2>/dev/null || true
+    fi
+  fi
 fi
 
 if [[ ! -f "$ACME_SH" ]]; then
-  err "acme.sh 安装失败！"
-  info "请手动安装: curl https://get.acme.sh | sh"
+  err "acme.sh 安装失败！所有安装方式均不可用。"
+  echo ""
+  info "请手动安装后重试："
+  info "  curl https://get.acme.sh | sh"
+  info "  或: git clone https://github.com/acmesh-official/acme.sh.git && cd acme.sh && ./acme.sh --install"
+  info "  或: git clone https://gitee.com/neilpang/acme.sh.git && cd acme.sh && ./acme.sh --install"
+  echo ""
   info "安装后重新运行: bash install-rc.sh --force"
   exit 1
 fi
