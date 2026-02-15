@@ -1,6 +1,6 @@
 # Configuration Reference
 
-[← Back to README](../README.en.md)
+[← Back to README](../README.en.md) · [Security & Credentials](SECURITY.en.md)
 
 All config is written automatically by CLI commands into `~/.openclaw/openclaw.json`. You normally don't need to edit it manually, but understanding the structure helps with troubleshooting and advanced customization.
 
@@ -104,9 +104,9 @@ Below shows the Rocket.Chat plugin-related sections of `~/.openclaw/openclaw.jso
     "installs": {
       "openclaw-rocketchat": {
         "source": "npm",
-        "spec": "openclaw-rocketchat@0.5.0",
+        "spec": "openclaw-rocketchat@0.7.2",
         "installPath": "/root/.openclaw/extensions/openclaw-rocketchat",
-        "version": "0.5.0",
+        "version": "0.7.2",
         "installedAt": "2026-02-15T07:37:17.498Z"
       }
     }
@@ -134,13 +134,19 @@ openclaw gateway restart
 - **Rebind bot to different Agent**: Edit `bindings` array, change `agentId`
 - **Remove a bot**: Delete entries from both `accounts` and `bindings`
 - **Toggle @mention requirement**: Edit `groups.<name>.requireMention`
-- **Upgrade plugin version**: Update `plugins.installs.openclaw-rocketchat.version` and `spec`
+- **Upgrade plugin version**: Use `openclaw rocketchat upgrade` (auto backup config, install new version, restore config)
 
-> **Note**: Bot credentials (passwords, tokens) are stored in `~/.openclaw/credentials/`, separate from `openclaw.json`. If you reinstall a bot, clean up the credentials directory as well.
+> **Note**: Bot credentials (passwords, tokens) are stored in two locations:
+> - `~/.openclaw/credentials/rocketchat/` — used at runtime (may be lost on plugin reinstall)
+> - `~/rocketchat/.rc-credentials` — automatic backup (auto-restored after reinstall)
+>
+> For detailed credential management and security info, see [Security & Credentials](SECURITY.en.md).
 
 ## Full Reset
 
 To completely remove Rocket.Chat config and start over:
+
+> **Tip**: If you just want to upgrade the plugin version, you don't need a full reset. Use `openclaw rocketchat upgrade` instead.
 
 ```bash
 # 1. Stop Gateway
@@ -152,6 +158,9 @@ openclaw gateway stop
 # 3. Remove plugin and credentials
 rm -rf ~/.openclaw/extensions/openclaw-rocketchat
 rm -rf ~/.openclaw/credentials/rocketchat*
+
+# 3b. (Optional) Also clean install backups (if you also reset RC in step 2)
+# rm -f ~/rocketchat/.rc-info ~/rocketchat/.rc-credentials
 
 # 4. Clean all Rocket.Chat related config entries
 python3 -c "

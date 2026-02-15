@@ -1,6 +1,6 @@
 # 配置参数详解
 
-[← 返回主页](../README.md)
+[← 返回主页](../README.md) · [安全与凭据](SECURITY.md)
 
 所有配置由 CLI 命令自动写入 `~/.openclaw/openclaw.json`。通常你不需要手动编辑，但了解配置结构有助于排查问题和高级自定义。
 
@@ -104,9 +104,9 @@
     "installs": {
       "openclaw-rocketchat": {
         "source": "npm",
-        "spec": "openclaw-rocketchat@0.5.0",
+        "spec": "openclaw-rocketchat@0.7.2",
         "installPath": "/root/.openclaw/extensions/openclaw-rocketchat",
-        "version": "0.5.0",
+        "version": "0.7.2",
         "installedAt": "2026-02-15T07:37:17.498Z"
       }
     }
@@ -134,13 +134,19 @@ openclaw gateway restart
 - **修改机器人绑定的 Agent**：修改 `bindings` 数组中对应条目的 `agentId`
 - **删除机器人**：从 `accounts` 和 `bindings` 中删除对应条目
 - **修改群组的 @提及 规则**：修改 `groups.<name>.requireMention`
-- **升级插件版本**：修改 `plugins.installs.openclaw-rocketchat.version` 和 `spec`
+- **升级插件版本**：推荐使用 `openclaw rocketchat upgrade`（自动备份配置、安装新版、恢复配置）
 
-> **注意**: 机器人的凭据（密码、token）存储在 `~/.openclaw/credentials/` 目录下，与 `openclaw.json` 分离。如果重装机器人，需要同时清理凭据文件。
+> **注意**: 机器人的凭据（密码、token）存储在两个位置：
+> - `~/.openclaw/credentials/rocketchat/` — 插件运行时使用（插件重装可能丢失）
+> - `~/rocketchat/.rc-credentials` — 自动备份（插件重装后自动恢复）
+>
+> 详细的凭据管理和安全说明请参阅 [安全与凭据](SECURITY.md)。
 
 ## 完全重置 Rocket.Chat 配置
 
 如果需要从头开始，运行以下命令清除所有 Rocket.Chat 相关配置：
+
+> **提示**：如果只是想升级插件版本，不需要完全重置。请使用 `openclaw rocketchat upgrade`。
 
 ```bash
 # 1. 停止 Gateway
@@ -152,6 +158,9 @@ openclaw gateway stop
 # 3. 清除插件和凭据
 rm -rf ~/.openclaw/extensions/openclaw-rocketchat
 rm -rf ~/.openclaw/credentials/rocketchat*
+
+# 3b.（可选）同时清除安装备份（如果也在第 2 步重置了 RC）
+# rm -f ~/rocketchat/.rc-info ~/rocketchat/.rc-credentials
 
 # 4. 清理配置文件中的所有 Rocket.Chat 相关条目
 python3 -c "
