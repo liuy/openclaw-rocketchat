@@ -149,20 +149,7 @@ To completely remove Rocket.Chat config and start over:
 > **Tip**: If you just want to upgrade the plugin version, you don't need a full reset. Use `openclaw rocketchat upgrade` instead.
 
 ```bash
-# 1. Stop Gateway
-openclaw gateway stop
-
-# 2. (Optional) To also reset Rocket.Chat data:
-# cd ~/rocketchat && docker compose down -v
-
-# 3. Remove plugin and credentials
-rm -rf ~/.openclaw/extensions/openclaw-rocketchat
-rm -rf ~/.openclaw/credentials/rocketchat*
-
-# 3b. (Optional) Also clean install backups (if you also reset RC in step 2)
-# rm -f ~/rocketchat/.rc-info ~/rocketchat/.rc-credentials
-
-# 4. Clean all Rocket.Chat related config entries
+# 1. Clean all Rocket.Chat related config entries (must run BEFORE stopping Gateway, otherwise Gateway may fail to stop due to config issues)
 python3 -c "
 import json
 p = '$HOME/.openclaw/openclaw.json'
@@ -178,7 +165,20 @@ with open(p, 'w') as f:
 print('Done')
 "
 
-# 5. Reinstall (if you reset RC in step 2, run install-rc.sh first)
+# 2. Stop Gateway
+openclaw gateway stop
+
+# 3. (Optional) To also reset Rocket.Chat data:
+# cd ~/rocketchat && docker compose down -v
+
+# 4. Remove plugin and credentials
+rm -rf ~/.openclaw/extensions/openclaw-rocketchat
+rm -rf ~/.openclaw/credentials/rocketchat*
+
+# 4b. (Optional) Also clean install backups (if you also reset RC in step 3)
+# rm -f ~/rocketchat/.rc-info ~/rocketchat/.rc-credentials
+
+# 5. Reinstall (if you reset RC in step 3, run install-rc.sh first)
 openclaw plugins install openclaw-rocketchat
 openclaw rocketchat setup
 openclaw rocketchat add-bot

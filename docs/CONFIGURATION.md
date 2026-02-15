@@ -149,20 +149,7 @@ openclaw gateway restart
 > **提示**：如果只是想升级插件版本，不需要完全重置。请使用 `openclaw rocketchat upgrade`。
 
 ```bash
-# 1. 停止 Gateway
-openclaw gateway stop
-
-# 2.（可选）如果也想重置 Rocket.Chat 数据：
-# cd ~/rocketchat && docker compose down -v
-
-# 3. 清除插件和凭据
-rm -rf ~/.openclaw/extensions/openclaw-rocketchat
-rm -rf ~/.openclaw/credentials/rocketchat*
-
-# 3b.（可选）同时清除安装备份（如果也在第 2 步重置了 RC）
-# rm -f ~/rocketchat/.rc-info ~/rocketchat/.rc-credentials
-
-# 4. 清理配置文件中的所有 Rocket.Chat 相关条目
+# 1. 清理配置文件中的所有 Rocket.Chat 相关条目（必须在停止 Gateway 之前执行，否则 Gateway 可能因配置异常无法正常停止）
 python3 -c "
 import json
 p = '$HOME/.openclaw/openclaw.json'
@@ -178,7 +165,20 @@ with open(p, 'w') as f:
 print('Done')
 "
 
-# 5. 重新安装（如果第 2 步重置了 RC，先重新跑 install-rc.sh）
+# 2. 停止 Gateway
+openclaw gateway stop
+
+# 3.（可选）如果也想重置 Rocket.Chat 数据：
+# cd ~/rocketchat && docker compose down -v
+
+# 4. 清除插件和凭据
+rm -rf ~/.openclaw/extensions/openclaw-rocketchat
+rm -rf ~/.openclaw/credentials/rocketchat*
+
+# 4b.（可选）同时清除安装备份（如果也在第 3 步重置了 RC）
+# rm -f ~/rocketchat/.rc-info ~/rocketchat/.rc-credentials
+
+# 5. 重新安装（如果第 3 步重置了 RC，先重新跑 install-rc.sh）
 openclaw plugins install openclaw-rocketchat
 openclaw rocketchat setup
 openclaw rocketchat add-bot

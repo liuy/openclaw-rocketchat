@@ -36,17 +36,7 @@ One command does it all. Automatically backs up config → installs new version 
 > Full reset steps also at [CONFIGURATION.en.md — Full Reset](CONFIGURATION.en.md#full-reset)
 
 ```bash
-# 1. Stop Gateway
-openclaw gateway stop
-
-# 2. (Optional) To also reset Rocket.Chat data:
-# cd ~/rocketchat && docker compose down -v
-
-# 3. Remove plugin and credentials
-rm -rf ~/.openclaw/extensions/openclaw-rocketchat
-rm -rf ~/.openclaw/credentials/rocketchat*
-
-# 4. Clean all Rocket.Chat related config entries
+# 1. Clean all Rocket.Chat related config entries (must run BEFORE stopping Gateway, otherwise Gateway may fail to stop due to config issues)
 python3 -c "
 import json
 p = '$HOME/.openclaw/openclaw.json'
@@ -62,7 +52,17 @@ with open(p, 'w') as f:
 print('Done')
 "
 
-# 5. Reinstall (if you reset RC in step 2, run install-rc.sh first)
+# 2. Stop Gateway
+openclaw gateway stop
+
+# 3. (Optional) To also reset Rocket.Chat data:
+# cd ~/rocketchat && docker compose down -v
+
+# 4. Remove plugin and credentials
+rm -rf ~/.openclaw/extensions/openclaw-rocketchat
+rm -rf ~/.openclaw/credentials/rocketchat*
+
+# 5. Reinstall (if you reset RC in step 3, run install-rc.sh first)
 openclaw plugins install openclaw-rocketchat
 openclaw rocketchat setup
 openclaw rocketchat add-bot
