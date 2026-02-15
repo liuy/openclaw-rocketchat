@@ -187,6 +187,31 @@ Send the corresponding phrase as the complete message (exact match required):
 > **Note:** The phrase must be the **entire message** and must **exactly match** a phrase from the tables above.
 > For example, `重置对话` triggers a reset, but `帮我重置对话` does not (sent to AI as regular message).
 
+### How Our Natural Language Commands Differ from Other Platforms
+
+On Telegram, Slack, and other platforms, if you say "reset conversation" in natural language, the message goes through the full AI pipeline:
+
+```
+Your message → Gateway → AI model (with system prompt + history context) → Model understands intent → Execute command
+```
+
+This means every "natural language command" consumes a full AI call — including system prompts, conversation history, tool declarations, and other overhead — **just to have the AI figure out you want to run a simple command**. This is an enormous waste of tokens.
+
+**This plugin works differently.** Natural language commands are **intercepted and converted at the plugin level**, completely bypassing the AI model:
+
+```
+Your message → Plugin intercepts (local exact match) → Execute command directly
+```
+
+| | Other Platforms | This Plugin |
+|--|----------------|-------------|
+| Processing | Sent to AI model to understand intent | Local exact match in plugin |
+| Token cost | ✅ Significant (system prompt + history context) | ❌ Zero tokens consumed |
+| Speed | Slower (waiting for AI response) | Instant (milliseconds) |
+| Accuracy | Depends on AI understanding | 100% exact match |
+
+When you send `重置对话`, the command executes **instantly** — zero tokens, zero wait.
+
 ---
 
 ## 💡 Most Used Commands
