@@ -69,7 +69,7 @@ export class RocketChatWsClient {
       const wsUrl = `${this.serverUrl}/websocket`;
 
       this.ws = new WebSocket(wsUrl, {
-        rejectUnauthorized: false, // 兼容自签名证书回退场景（正常情况下使用 Let's Encrypt 正式证书）
+        rejectUnauthorized: false, // 兼容 localhost 自回环及用户自定义证书场景
       });
 
       this.ws.on("open", () => {

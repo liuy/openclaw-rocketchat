@@ -258,7 +258,7 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 - 检测并安装 Docker（如果没有）
 - 部署 Rocket.Chat + MongoDB + Nginx（全部 Docker 容器）
 - 通过 [sslip.io](https://sslip.io) 自动获取**免费域名**（如 `166-88-11-59.sslip.io`，无需购买）
-- 优先用 Let's Encrypt 获取**正式 HTTPS 证书**（App 直连零警告），失败时自动回退到自签名证书
+- 通过 acme.sh 自动获取 **Let's Encrypt 正式 HTTPS 证书**（双重验证策略：HTTP-01 + TLS-ALPN-01，App 直连零警告，自动续期）
 - 禁用邮箱二次验证（自建服务器无邮件服务）
 - Rocket.Chat 仅内部通信，**不暴露 3000 端口到公网**
 
@@ -428,7 +428,7 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 脚本会自动：
 - 检测并安装 Docker（如未安装）
 - 部署 Rocket.Chat + MongoDB + Nginx（HTTPS）
-- 通过 sslip.io 获取免费域名 + 优先申请 Let's Encrypt 正式证书
+- 通过 sslip.io 获取免费域名 + acme.sh 申请 Let's Encrypt 正式证书
 - 启动服务并等待就绪
 - 输出 `https://VPS-IP.sslip.io` 地址和后续步骤
 
@@ -855,17 +855,25 @@ cd ~/rocketchat && docker compose down -v
 
 - 完全免费，无需注册，无需配置
 - 由开源社区维护，Google、IBM 等文档中也在使用
-- 如果 sslip.io 不可用（极罕见），脚本会自动回退到自签名证书
+- 如果 sslip.io 不可用（极罕见），脚本会给出明确提示
 </details>
 
 <details>
-<summary><b>自签名证书安全吗？App 提示"不受信任"怎么办？</b></summary>
+<summary><b>证书获取失败怎么办？</b></summary>
 
-正常情况下 install-rc.sh 会自动获取 Let's Encrypt 正式证书，App 直连不会有任何警告。
+install-rc.sh 通过 acme.sh 自动获取 Let's Encrypt 证书，采用**双重验证策略**：
 
-只有在 Let's Encrypt 获取失败时（如 80 端口被占用），才会回退到自签名证书。此时 App 首次连接会提示"证书不受信任"，点「信任」或「继续」即可。
+1. **策略 1：HTTP-01**（端口 80）— 最通用的方式，优先尝试
+2. **策略 2：TLS-ALPN-01**（端口 443）— 80 端口不可用时自动切换
 
-自签名证书的加密强度和正规证书完全一样（RSA 2048），只是没有经过第三方 CA 认证。
+如果两种方式都失败，脚本会给出详细错误原因。常见原因：
+
+1. **防火墙未放行端口** — 至少需要放行 443，建议同时放行 80。在云控制台的安全组中添加对应规则。
+2. **端口被其他程序占用** — 用 `ss -tlnp | grep -E ':80 |:443 '` 检查，停止占用程序后重试。
+3. **sslip.io DNS 解析异常** — 用 `dig 你的域名.sslip.io` 检查解析是否正确。
+4. **Let's Encrypt 速率限制** — 短时间内多次失败可能触发限制，等待 1 小时后重试。
+
+修复后运行 `bash install-rc.sh --force` 重新安装。
 </details>
 
 <details>

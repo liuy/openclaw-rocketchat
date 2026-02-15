@@ -257,7 +257,7 @@ The script will automatically:
 - Detect and install Docker (if not present)
 - Deploy Rocket.Chat + MongoDB + Nginx (all Docker containers)
 - Auto-configure **sslip.io free domain** (e.g. `123-45-67-89.sslip.io`)
-- Prioritize **Let's Encrypt real HTTPS cert**; fall back to self-signed if unavailable
+- Auto-obtains **Let's Encrypt HTTPS cert** via acme.sh (auto-renewal every 60 days)
 - Disable email two-factor auth (no mail server on self-hosted)
 - Rocket.Chat communicates internally only — **port 3000 is not exposed to the public**
 
@@ -428,7 +428,7 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 The script will automatically:
 - Detect and install Docker (if not present)
 - Deploy Rocket.Chat + MongoDB + Nginx (HTTPS)
-- Auto-configure **sslip.io free domain** + request **Let's Encrypt** cert (falls back to self-signed)
+- Auto-configure **sslip.io free domain** + request **Let's Encrypt** cert via acme.sh (the script will show a clear error message if acquisition fails)
 - Start services and wait until ready
 - Output the `https://VPS-IP.sslip.io` address and next steps
 
@@ -866,17 +866,16 @@ sslip.io is:
 </details>
 
 <details>
-<summary><b>What about self-signed certificates? The app says "untrusted"</b></summary>
+<summary><b>What if certificate acquisition fails?</b></summary>
 
-Self-signed certificates are now only a **fallback**. The install script first tries to obtain a **Let's Encrypt certificate** via sslip.io. In most cases this succeeds and your app connects with zero warnings.
+The `install-rc.sh` script uses **acme.sh** to auto-obtain Let's Encrypt certificates. If acquisition fails, common reasons include:
 
-Self-signed certificates are only used when Let's Encrypt is unavailable (e.g. port 80 blocked, rate limits, or network issues). If you do end up with a self-signed cert:
+- **Firewall not allowing port 80** — Let's Encrypt validates via HTTP on port 80; ensure it's open
+- **Port 80 occupied** — Another service (e.g. web server) may be using it
+- **sslip.io DNS issues** — The script relies on sslip.io for domain resolution; check connectivity
+- **Let's Encrypt rate limits** — Too many requests in a short period; wait and retry later
 
-- It has the same encryption strength as a regular certificate (RSA 2048)
-- The app will warn about an "untrusted certificate" on first connection — tap "Trust" or "Continue"
-- It won't ask again after that
-
-You can re-run the install script later to retry Let's Encrypt once the issue is resolved.
+Fix the underlying issue, then re-run: `bash install-rc.sh --force`
 </details>
 
 <details>

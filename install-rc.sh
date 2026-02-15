@@ -4,7 +4,8 @@
 # 在任意 Linux/macOS 上快速部署 Rocket.Chat + MongoDB + Nginx（Docker）
 #
 # 自动配置：
-#   - Nginx 反向代理（HTTPS 443 端口，自签名证书）
+#   - 通过 sslip.io 免费域名 + acme.sh 获取 Let's Encrypt 正式 HTTPS 证书
+#   - Nginx 反向代理（HTTPS 443 端口）
 #   - Rocket.Chat 仅内部通信，不暴露到公网
 #   - 禁用邮箱二次验证（自建服务器无邮件服务）
 #
@@ -246,71 +247,119 @@ RC_DOMAIN="${PUBLIC_IP//./-}.sslip.io"
 info "域名: ${RC_DOMAIN}（通过 sslip.io 免费提供）"
 
 # -----------------------------------------------
-# 5. 获取 SSL 证书（Let's Encrypt 优先，自签名兜底）
+# 5. 获取 Let's Encrypt 证书（通过 acme.sh）
 # -----------------------------------------------
 SSL_DIR="${INSTALL_DIR}/ssl"
 mkdir -p "${SSL_DIR}"
-USE_LETSENCRYPT=false
 
-step "尝试获取 Let's Encrypt 免费证书..."
-info "（需要 80 端口可用，如果失败会自动使用自签名证书）"
+step "获取 Let's Encrypt HTTPS 证书..."
 
-# 检查 80 端口是否可用（certbot 需要）
-PORT80_FREE=true
-if command -v ss &>/dev/null; then
-  if ss -tlnp 2>/dev/null | grep -q ":80 "; then
-    PORT80_FREE=false
-  fi
+# 5a. 验证 sslip.io 域名解析是否正确
+step "验证域名 ${RC_DOMAIN} 解析..."
+RESOLVED_IP=""
+if command -v dig &>/dev/null; then
+  RESOLVED_IP=$(dig +short "${RC_DOMAIN}" 2>/dev/null | grep -E '^[0-9]+\.' | head -1)
+elif command -v nslookup &>/dev/null; then
+  RESOLVED_IP=$(nslookup "${RC_DOMAIN}" 2>/dev/null | awk '/^Address:/ && !/#/ {print $2}' | tail -1)
+elif command -v getent &>/dev/null; then
+  RESOLVED_IP=$(getent hosts "${RC_DOMAIN}" 2>/dev/null | awk '{print $1}' | head -1)
 fi
 
-if [[ "$PORT80_FREE" == "true" ]]; then
-  # 安装 certbot（如果没有）
-  if ! command -v certbot &>/dev/null; then
-    step "安装 certbot..."
-    if command -v apt-get &>/dev/null; then
-      apt-get update -qq && apt-get install -y -qq certbot 2>/dev/null
-    elif command -v yum &>/dev/null; then
-      yum install -y certbot 2>/dev/null
-    fi
-  fi
-
-  if command -v certbot &>/dev/null; then
-    # 用 standalone 模式获取证书
-    if certbot certonly --standalone --non-interactive --agree-tos \
-      --register-unsafely-without-email \
-      -d "${RC_DOMAIN}" 2>/dev/null; then
-      # 复制证书到安装目录
-      cp "/etc/letsencrypt/live/${RC_DOMAIN}/fullchain.pem" "${SSL_DIR}/rocketchat.crt"
-      cp "/etc/letsencrypt/live/${RC_DOMAIN}/privkey.pem" "${SSL_DIR}/rocketchat.key"
-      USE_LETSENCRYPT=true
-      success "Let's Encrypt 证书获取成功！（自动续期）"
-
-      # 设置自动续期 cron
-      RENEW_CMD="certbot renew --quiet && cp /etc/letsencrypt/live/${RC_DOMAIN}/fullchain.pem ${SSL_DIR}/rocketchat.crt && cp /etc/letsencrypt/live/${RC_DOMAIN}/privkey.pem ${SSL_DIR}/rocketchat.key && cd ${INSTALL_DIR} && ${COMPOSE_CMD} restart nginx"
-      (crontab -l 2>/dev/null; echo "0 3 * * * ${RENEW_CMD}") | sort -u | crontab -
-      info "已设置证书自动续期（每天凌晨 3 点检查）"
-    else
-      warn "Let's Encrypt 证书获取失败，使用自签名证书"
-    fi
-  else
-    warn "certbot 未安装成功，使用自签名证书"
-  fi
+if [[ "$RESOLVED_IP" == "$PUBLIC_IP" ]]; then
+  success "域名解析正确: ${RC_DOMAIN} → ${PUBLIC_IP}"
 else
-  warn "80 端口被占用，跳过 Let's Encrypt，使用自签名证书"
+  if [[ -n "$RESOLVED_IP" ]]; then
+    err "域名解析异常: ${RC_DOMAIN} → ${RESOLVED_IP}（预期 ${PUBLIC_IP}）"
+  else
+    warn "无法验证域名解析（缺少 dig/nslookup/getent）"
+    info "继续尝试申请证书..."
+  fi
 fi
 
-# 如果 Let's Encrypt 失败，使用自签名证书
-if [[ "$USE_LETSENCRYPT" != "true" ]]; then
-  step "生成 HTTPS 自签名证书..."
-  openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-    -keyout "${SSL_DIR}/rocketchat.key" \
-    -out "${SSL_DIR}/rocketchat.crt" \
-    -subj "/CN=${RC_DOMAIN}" \
-    -addext "subjectAltName=DNS:${RC_DOMAIN},IP:${PUBLIC_IP}" \
-    2>/dev/null
-  success "自签名证书已生成（有效期 10 年）"
-  info "注意：App 首次连接可能需要信任证书"
+# 5b. 安装 acme.sh（如果未安装）
+ACME_SH="$HOME/.acme.sh/acme.sh"
+if [[ ! -f "$ACME_SH" ]]; then
+  step "安装 acme.sh..."
+  curl -fsSL https://get.acme.sh | sh -s email=openclaw@openclaw.local 2>&1 | tail -3
+  source "$HOME/.acme.sh/acme.sh.env" 2>/dev/null || true
 fi
+
+if [[ ! -f "$ACME_SH" ]]; then
+  err "acme.sh 安装失败！"
+  info "请手动安装: curl https://get.acme.sh | sh"
+  info "安装后重新运行: bash install-rc.sh --force"
+  exit 1
+fi
+success "acme.sh 已就绪"
+
+# 5c. 申请 Let's Encrypt 证书
+#     策略 1: HTTP-01（standalone，80 端口）— 最通用
+#     策略 2: TLS-ALPN-01（alpn，443 端口）— 80 端口不可用时的后备
+CERT_ISSUED=false
+
+step "申请 Let's Encrypt 证书..."
+info "策略 1: HTTP-01 验证（standalone 模式，使用 80 端口）"
+
+if "$ACME_SH" --issue --standalone -d "${RC_DOMAIN}" \
+  --server letsencrypt \
+  --keylength 2048 \
+  --pre-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} stop nginx 2>/dev/null || true" \
+  --post-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} start nginx 2>/dev/null || true"; then
+  CERT_ISSUED=true
+  success "证书获取成功！（HTTP-01 验证）"
+else
+  warn "HTTP-01 验证失败（80 端口可能不可用），自动切换后备方案..."
+  echo ""
+  info "策略 2: TLS-ALPN-01 验证（alpn 模式，使用 443 端口）"
+  info "此方式不需要 80 端口，只需 443 端口可用"
+
+  if "$ACME_SH" --issue --alpn -d "${RC_DOMAIN}" \
+    --server letsencrypt \
+    --keylength 2048 \
+    --pre-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} stop nginx 2>/dev/null || true" \
+    --post-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} start nginx 2>/dev/null || true"; then
+    CERT_ISSUED=true
+    success "证书获取成功！（TLS-ALPN-01 验证）"
+  fi
+fi
+
+if [[ "$CERT_ISSUED" != "true" ]]; then
+  echo ""
+  err "两种验证方式均失败！"
+  echo ""
+  info "HTTP-01（80 端口）和 TLS-ALPN-01（443 端口）均未通过。"
+  echo ""
+  info "常见原因及解决方案："
+  echo ""
+  info "  1. 防火墙未放行端口"
+  info "     → 至少需要放行 443 端口（HTTPS），建议同时放行 80 端口"
+  info "     → 阿里云: 安全组 → 添加 TCP 443 和 TCP 80"
+  info "     → 腾讯云: 防火墙 → 添加 TCP 443 和 TCP 80"
+  info "     → Ubuntu: sudo ufw allow 443/tcp && sudo ufw allow 80/tcp"
+  echo ""
+  info "  2. 端口被其他程序占用"
+  info "     → 检查: ss -tlnp | grep -E ':80 |:443 '"
+  info "     → 停止占用程序后重试"
+  echo ""
+  info "  3. sslip.io DNS 解析异常"
+  info "     → 检查: dig ${RC_DOMAIN} 或 nslookup ${RC_DOMAIN}"
+  info "     → 预期解析到: ${PUBLIC_IP}"
+  echo ""
+  info "  4. Let's Encrypt 速率限制"
+  info "     → 同一域名短时间内最多 5 次失败，等待 1 小时后重试"
+  echo ""
+  info "修复后重新运行: bash install-rc.sh --force"
+  exit 1
+fi
+
+# 5d. 安装证书到目标目录
+"$ACME_SH" --install-cert -d "${RC_DOMAIN}" \
+  --key-file "${SSL_DIR}/rocketchat.key" \
+  --fullchain-file "${SSL_DIR}/rocketchat.crt" \
+  --reloadcmd "cd ${INSTALL_DIR} && ${COMPOSE_CMD} restart nginx 2>/dev/null || true"
+
+success "Let's Encrypt 证书获取成功！"
+info "acme.sh 已自动配置证书续期（每 60 天自动更新）"
 
 # -----------------------------------------------
 # 6. 生成 Nginx 配置
@@ -434,7 +483,7 @@ WAITED=0
 INTERVAL=5
 
 while [ $WAITED -lt $MAX_WAIT ]; do
-  # 通过 nginx 的 HTTPS 端口探测（-k 忽略自签名证书）
+  # 通过 nginx 的 HTTPS 端口探测（-k 跳过证书验证，因为是 localhost 回环）
   HTTP_CODE=$(curl -sk -o /dev/null -w "%{http_code}" \
     -X POST "https://127.0.0.1/api/v1/login" \
     -H "Content-Type: application/json" \
@@ -483,20 +532,16 @@ echo "╚═══════════════════════�
 echo ""
 info "服务器地址: https://${RC_DOMAIN}"
 info "安装目录:   ${INSTALL_DIR}"
-if [[ "$USE_LETSENCRYPT" == "true" ]]; then
-  info "HTTPS:      Let's Encrypt 正式证书（自动续期）"
-else
-  info "HTTPS:      自签名证书（App 首次连接时信任即可）"
-fi
+info "HTTPS:      Let's Encrypt 正式证书（acme.sh 自动续期）"
 info "域名:       ${RC_DOMAIN}（由 sslip.io 免费提供，无需购买）"
 echo ""
 info "📌 接下来的步骤："
 echo ""
-info "  1️⃣  确保防火墙已放行端口 443"
-info "     阿里云: 安全组 → 添加 TCP 443"
-info "     腾讯云: 防火墙 → 添加 TCP 443"
-info "     Ubuntu: sudo ufw allow 443/tcp"
-info "     CentOS: sudo firewall-cmd --add-port=443/tcp --permanent && sudo firewall-cmd --reload"
+info "  1️⃣  确保防火墙已放行端口 443 和 80"
+info "     阿里云: 安全组 → 添加 TCP 443 和 TCP 80"
+info "     腾讯云: 防火墙 → 添加 TCP 443 和 TCP 80"
+info "     Ubuntu: sudo ufw allow 443/tcp && sudo ufw allow 80/tcp"
+info "     CentOS: sudo firewall-cmd --add-port=443/tcp --add-port=80/tcp --permanent && sudo firewall-cmd --reload"
 echo ""
 info "  2️⃣  回到你的 OpenClaw 机器，安装插件并配置："
 echo ""
@@ -512,11 +557,7 @@ echo -e "     ${CYAN}openclaw rocketchat add-bot${NC}"
 echo ""
 info "  4️⃣  手机下载 Rocket.Chat App："
 info "     App 里输入服务器地址: https://${RC_DOMAIN}"
-if [[ "$USE_LETSENCRYPT" == "true" ]]; then
-  info "     证书已受信任，直接连接即可"
-else
-  info "     首次连接会提示证书不受信任，点「信任」或「继续」即可"
-fi
+info "     HTTPS 证书已受信任，直接连接即可"
 echo ""
 info "🔧 常用管理命令："
 info "  查看日志:   cd ${INSTALL_DIR} && ${COMPOSE_CMD} logs -f"

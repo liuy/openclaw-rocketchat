@@ -27,8 +27,8 @@ export class RocketChatRestClient {
     // 去掉末尾斜杠
     this.serverUrl = serverUrl.replace(/\/+$/, "");
 
-    // TLS 验证：正常情况下 install-rc.sh 会获取 Let's Encrypt 正式证书，无需跳过验证。
-    // 但为了兼容自签名证书回退场景（Let's Encrypt 获取失败时），仍对 HTTPS 连接忽略 TLS 验证。
+    // TLS 验证：install-rc.sh 通过 acme.sh 获取 Let's Encrypt 正式证书。
+    // 跳过 TLS 验证以兼容 localhost 自回环、用户自定义证书等场景。
     if (this.serverUrl.startsWith("https://")) {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     }
