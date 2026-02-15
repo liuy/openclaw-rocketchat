@@ -112,15 +112,22 @@ export class MessageHandler {
       return;
     }
 
+    // 构造发送者信息（显示名 + 用户名）
+    const senderDisplayName = msg.u.name || msg.u.username;
+    const senderUsername = msg.u.username;
+    const senderId = msg.u._id;
+
     this.logger.info(
-      `入站: ${msg.u.username} -> ${botUsername} (Agent: ${agentId}): ${text.slice(0, 100)}...`,
+      `入站: ${senderUsername} -> ${botUsername} (Agent: ${agentId}): ${text.slice(0, 100)}...`,
     );
 
     try {
       await this.dispatchToAgent(
         text,
         botUsername,
-        msg.u.username,
+        senderUsername,
+        senderId,
+        senderDisplayName,
         roomId,
         agentId,
         msg._id,
@@ -193,7 +200,9 @@ export class MessageHandler {
   private async dispatchToAgent(
     text: string,
     botUsername: string,
+    senderUsername: string,
     senderId: string,
+    senderDisplayName: string,
     roomId: string,
     agentId: string,
     messageId: string,
@@ -208,7 +217,9 @@ export class MessageHandler {
     await this.dispatchViaRuntime(
       text,
       botUsername,
+      senderUsername,
       senderId,
+      senderDisplayName,
       roomId,
       agentId,
       messageId,
@@ -228,7 +239,9 @@ export class MessageHandler {
   private async dispatchViaRuntime(
     text: string,
     botUsername: string,
+    senderUsername: string,
     senderId: string,
+    senderDisplayName: string,
     roomId: string,
     agentId: string,
     messageId: string,
@@ -253,16 +266,33 @@ export class MessageHandler {
       ? `agent:${agentId}:rocketchat:group:${botUsername}:${roomId}`
       : `agent:${agentId}:rocketchat:dm:${botUsername}:${roomId}`;
 
-    // 构造消息上下文（参考 Feishu 插件的 finalizeInboundContext 参数）
+    // 构造发送者标签（参考 Telegram 的 buildSenderLabel）
+    // 群组中显示为 "显示名 (@用户名)"，让 Agent 知道是谁在说话
+    const senderLabel = senderDisplayName !== senderUsername
+      ? `${senderDisplayName} (@${senderUsername})`
+      : `@${senderUsername}`;
+
+    // 构造 Body（参考 Telegram/Slack 的 formatInboundEnvelope）
+    // 群组消息：在消息前加上发送者标签，如 "张三 (@zhangsan): 你好"
+    // DM 消息：不加前缀（只有一个人在对话）
+    const bodyForAgent = text;
+    const bodyWithSender = isGroup ? `${senderLabel}: ${text}` : text;
+
+    // 构造 ConversationLabel（群组显示群名，DM 显示发送者）
+    const conversationLabel = isGroup
+      ? (groupInfo?.groupName ?? `group:${roomId}`)
+      : senderLabel;
+
+    // 构造消息上下文（参考 Telegram/Slack 插件的 finalizeInboundContext 参数）
     const rawCtx: Record<string, unknown> = {
-      Body: text,
-      BodyForAgent: text,
+      Body: bodyWithSender,
+      BodyForAgent: bodyForAgent,
       RawBody: text,
       CommandBody: text,
       BodyForCommands: text,
       From: isGroup
-        ? `rocketchat:group:${roomId}:${senderId}`
-        : `rocketchat:${senderId}`,
+        ? `rocketchat:group:${roomId}:${senderUsername}`
+        : `rocketchat:${senderUsername}`,
       To: isGroup
         ? `rocketchat:group:${roomId}`
         : `rocketchat:dm:${botUsername}`,
@@ -273,11 +303,12 @@ export class MessageHandler {
       OriginatingChannel: "rocketchat",
       OriginatingTo: roomId,
       ChatType: chatType,
+      ConversationLabel: conversationLabel,
       CommandAuthorized: true,
       MessageSid: messageId,
       SenderId: senderId,
-      SenderName: senderId,
-      SenderUsername: senderId,
+      SenderName: senderDisplayName,
+      SenderUsername: senderUsername,
       Timestamp: Date.now(),
     };
 
