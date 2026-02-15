@@ -204,6 +204,14 @@ export class RocketChatRestClient {
     });
   }
 
+  /** 修改用户密码（需要管理员权限） */
+  async updateUserPassword(userId: string, newPassword: string): Promise<void> {
+    await this.request("POST", "/users.update", {
+      userId,
+      data: { password: newPassword },
+    });
+  }
+
   // ----------------------------------------------------------
   // DM 私聊
   // ----------------------------------------------------------

@@ -249,6 +249,13 @@ success "公网 IP: ${PUBLIC_IP}"
 RC_DOMAIN="${PUBLIC_IP//./-}.sslip.io"
 info "域名: ${RC_DOMAIN}（通过 sslip.io 免费提供）"
 
+# 生成随机管理员密码（避免弱口令安全风险）
+RC_ADMIN_PASS=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
+# 确保至少 12 位且包含字母数字
+if [ ${#RC_ADMIN_PASS} -lt 12 ]; then
+  RC_ADMIN_PASS="RcAdmin$(date +%s | sha256sum | head -c 16)"
+fi
+
 # -----------------------------------------------
 # 5. 获取 Let's Encrypt 证书（通过 acme.sh）
 # -----------------------------------------------
@@ -480,6 +487,10 @@ services:
       DEPLOY_METHOD: docker
       OVERWRITE_SETTING_Show_Setup_Wizard: "completed"
       OVERWRITE_SETTING_Accounts_TwoFactorAuthentication_By_Email_Enabled: "false"
+      OVERWRITE_SETTING_Accounts_RegistrationForm: "Disabled"
+      ADMIN_USERNAME: admin
+      ADMIN_PASS: "${RC_ADMIN_PASS}"
+      ADMIN_EMAIL: "admin@openclaw.local"
     depends_on:
       - mongodb
 
@@ -574,8 +585,39 @@ if [ -z "${RC_DOMAIN:-}" ]; then
   RC_DOMAIN="${PUBLIC_IP//./-}.sslip.io"
 fi
 
+# 确保 RC_ADMIN_PASS 已设置（重启已有安装时从 .rc-info 读取）
+if [ -z "${RC_ADMIN_PASS:-}" ]; then
+  if [ -f "${INSTALL_DIR}/.rc-info" ]; then
+    RC_ADMIN_PASS=$(grep "^ADMIN_PASS=" "${INSTALL_DIR}/.rc-info" 2>/dev/null | cut -d'=' -f2-)
+  fi
+  # 如果仍然为空（旧版安装），生成新密码
+  if [ -z "${RC_ADMIN_PASS:-}" ]; then
+    RC_ADMIN_PASS="admin"
+    warn "未找到管理员密码记录，使用默认值。建议运行 openclaw rocketchat setup 后自动加固。"
+  fi
+fi
+
 # -----------------------------------------------
-# 11. 完成
+# 11. 保存安装信息（供 openclaw rocketchat setup 自动读取）
+# -----------------------------------------------
+RC_INFO_FILE="${INSTALL_DIR}/.rc-info"
+cat > "${RC_INFO_FILE}" << RC_INFO_EOF
+# Rocket.Chat 安装信息（由 install-rc.sh 自动生成）
+# openclaw rocketchat setup 会自动读取此文件，无需手动输入
+# 文件路径: ${RC_INFO_FILE}
+SERVER_URL=https://${RC_DOMAIN}
+PUBLIC_IP=${PUBLIC_IP}
+DOMAIN=${RC_DOMAIN}
+ADMIN_USER=admin
+ADMIN_PASS=${RC_ADMIN_PASS}
+INSTALL_DIR=${INSTALL_DIR}
+INSTALLED_AT=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+RC_INFO_EOF
+chmod 600 "${RC_INFO_FILE}" 2>/dev/null || true
+info "安装信息已保存到: ${RC_INFO_FILE}"
+
+# -----------------------------------------------
+# 12. 完成
 # -----------------------------------------------
 echo ""
 echo "╔══════════════════════════════════════════════════════════╗"
@@ -587,10 +629,10 @@ info "安装目录:   ${INSTALL_DIR}"
 info "HTTPS:      Let's Encrypt 正式证书（acme.sh 自动续期）"
 info "域名:       ${RC_DOMAIN}（由 sslip.io 免费提供，无需购买）"
 echo ""
-info "🔑 默认管理员账号："
+info "🔑 管理员账号（已自动生成强密码）："
 echo -e "     用户名: ${GREEN}admin${NC}"
-echo -e "     密码:   ${GREEN}admin${NC}"
-info "   （这是 Rocket.Chat 的内置管理员，运行 openclaw rocketchat setup 时会自动接管。"
+echo -e "     密码:   ${GREEN}${RC_ADMIN_PASS}${NC}"
+info "   （已保存到 ${RC_INFO_FILE}，setup 时会自动读取。"
 info "    普通用户不需要知道这个账号，仅供服务器管理使用。）"
 echo ""
 info "📌 接下来的步骤："
@@ -601,12 +643,13 @@ info "     腾讯云: 防火墙 → 添加 TCP 443 和 TCP 80"
 info "     Ubuntu: sudo ufw allow 443/tcp && sudo ufw allow 80/tcp"
 info "     CentOS: sudo firewall-cmd --add-port=443/tcp --add-port=80/tcp --permanent && sudo firewall-cmd --reload"
 echo ""
-info "  2️⃣  回到你的 OpenClaw 机器，安装插件并配置："
+info "  2️⃣  安装插件并配置："
 echo ""
 echo -e "     ${CYAN}openclaw plugins install openclaw-rocketchat${NC}"
 echo -e "     ${CYAN}openclaw rocketchat setup${NC}"
 echo ""
-info "     setup 时输入服务器地址："
+info "     💡 如果在同一台机器上，setup 会自动读取安装信息，无需手动输入！"
+info "     如果在另一台机器上，setup 时输入服务器地址："
 echo -e "     ${GREEN}https://${RC_DOMAIN}${NC}"
 echo ""
 info "  3️⃣  添加 AI 机器人："

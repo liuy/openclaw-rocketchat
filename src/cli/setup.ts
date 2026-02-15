@@ -5,6 +5,9 @@
 // Docker 部署已独立到 install-rc.sh，本命令只负责"连接和配置"
 // ============================================================
 
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { RocketChatRestClient } from "../rc-api/rest-client.js";
 import { ConfigWriter } from "../config/writer.js";
 import {
@@ -28,6 +31,55 @@ import {
   info,
 } from "./prompts.js";
 
+/** install-rc.sh 生成的安装信息 */
+interface RcInfo {
+  serverUrl?: string;
+  adminUser?: string;
+  adminPass?: string;
+  domain?: string;
+  publicIp?: string;
+  installDir?: string;
+}
+
+/**
+ * 尝试从 install-rc.sh 生成的 .rc-info 文件中读取安装信息
+ * 查找路径：~/rocketchat/.rc-info（默认安装目录）
+ */
+function tryLoadRcInfo(): RcInfo | null {
+  const candidates = [
+    join(homedir(), "rocketchat", ".rc-info"),
+    "/root/rocketchat/.rc-info",
+  ];
+
+  for (const path of candidates) {
+    if (!existsSync(path)) continue;
+    try {
+      const content = readFileSync(path, "utf-8");
+      const info: RcInfo = {};
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) continue;
+        const eqIdx = trimmed.indexOf("=");
+        if (eqIdx < 0) continue;
+        const key = trimmed.slice(0, eqIdx).trim();
+        const val = trimmed.slice(eqIdx + 1).trim();
+        switch (key) {
+          case "SERVER_URL": info.serverUrl = val; break;
+          case "ADMIN_USER": info.adminUser = val; break;
+          case "ADMIN_PASS": info.adminPass = val; break;
+          case "DOMAIN": info.domain = val; break;
+          case "PUBLIC_IP": info.publicIp = val; break;
+          case "INSTALL_DIR": info.installDir = val; break;
+        }
+      }
+      if (info.serverUrl) return info;
+    } catch {
+      // 忽略读取错误
+    }
+  }
+  return null;
+}
+
 export async function setupCommand(configPath: string): Promise<void> {
   heading("Rocket.Chat 配置向导");
 
@@ -41,21 +93,49 @@ export async function setupCommand(configPath: string): Promise<void> {
     }
   }
 
-  console.log("");
-  info("本命令用于连接 Rocket.Chat 服务器并配置插件。");
-  info("如果还没有部署 Rocket.Chat，请先运行 install-rc.sh：");
-  console.log("");
-  info("  本机部署:   bash install-rc.sh");
-  info("  远程 VPS:   SSH 到 VPS 上运行 bash install-rc.sh");
-  console.log("");
+  // ----------------------------------------------------------
+  // 0. 尝试读取 install-rc.sh 保存的安装信息
+  // ----------------------------------------------------------
+  const rcInfo = tryLoadRcInfo();
+  let autoMode = false;
+
+  if (rcInfo) {
+    success(`检测到本机 Rocket.Chat 安装信息`);
+    info(`  服务器地址: ${rcInfo.serverUrl}`);
+    if (rcInfo.domain) info(`  域名: ${rcInfo.domain}`);
+    if (rcInfo.adminUser) info(`  管理员: ${rcInfo.adminUser}`);
+    console.log("");
+
+    const useDetected = await confirm("使用检测到的信息自动配置？（推荐）");
+    if (useDetected) {
+      autoMode = true;
+    }
+  }
+
+  if (!autoMode) {
+    console.log("");
+    info("本命令用于连接 Rocket.Chat 服务器并配置插件。");
+    info("如果还没有部署 Rocket.Chat，请先运行 install-rc.sh：");
+    console.log("");
+    info("  本机部署:   bash install-rc.sh");
+    info("  远程 VPS:   SSH 到 VPS 上运行 bash install-rc.sh");
+    console.log("");
+  }
 
   // ----------------------------------------------------------
   // 1. 输入服务器地址
   // ----------------------------------------------------------
-  const serverUrl = await ask(
-    "Rocket.Chat 服务器地址\n  （本机部署填 https://127.0.0.1，远程填 install-rc.sh 输出的 https://xxx.sslip.io 地址）",
-    "https://127.0.0.1",
-  );
+  let serverUrl: string;
+  if (autoMode && rcInfo?.serverUrl) {
+    serverUrl = rcInfo.serverUrl;
+    info(`使用检测到的服务器地址: ${serverUrl}`);
+  } else {
+    const defaultUrl = rcInfo?.serverUrl || "https://127.0.0.1";
+    serverUrl = await ask(
+      "Rocket.Chat 服务器地址\n  （本机部署填 https://127.0.0.1，远程填 install-rc.sh 输出的 https://xxx.sslip.io 地址）",
+      defaultUrl,
+    ) || "";
+  }
 
   if (!serverUrl) {
     error("地址不能为空！");
@@ -96,45 +176,51 @@ export async function setupCommand(configPath: string): Promise<void> {
   // ----------------------------------------------------------
   // 3. 管理员账号
   // ----------------------------------------------------------
-  console.log("");
-  info("需要一个管理员账号来创建机器人和用户。");
-
-  const adminMode = await select("管理员账号", [
-    {
-      label: "自动创建新管理员（推荐，适用于新装的 Rocket.Chat）",
-      value: "create",
-    },
-    {
-      label: "使用已有管理员账号（适用于已在运行的 Rocket.Chat）",
-      value: "existing",
-    },
-  ]);
-
-  if (adminMode === "create") {
+  if (autoMode) {
+    // 自动模式：直接走"自动创建管理员"路径（内部会尝试 admin/admin）
     const adminCreated = await createAdminAccount(rc, cleanUrl);
     if (!adminCreated) return;
   } else {
-    const existingAdminUser = await ask("管理员用户名");
-    const existingAdminPass = await askPassword("管理员密码");
-    if (!existingAdminUser || !existingAdminPass) {
-      error("用户名和密码不能为空！");
-      return;
-    }
+    console.log("");
+    info("需要一个管理员账号来创建机器人和用户。");
 
-    step("验证管理员身份...");
-    try {
-      const authResult = await rc.login(existingAdminUser, existingAdminPass);
-      await saveAdminCredentials({
-        userId: authResult.userId,
-        authToken: authResult.authToken,
-        username: existingAdminUser,
-        password: existingAdminPass,
-      });
-      success("管理员身份验证成功");
-    } catch (err) {
-      error(`登录失败: ${(err as Error).message}`);
-      info("请检查用户名和密码是否正确，以及该账号是否具有管理员权限。");
-      return;
+    const adminMode = await select("管理员账号", [
+      {
+        label: "自动创建新管理员（推荐，适用于新装的 Rocket.Chat）",
+        value: "create",
+      },
+      {
+        label: "使用已有管理员账号（适用于已在运行的 Rocket.Chat）",
+        value: "existing",
+      },
+    ]);
+
+    if (adminMode === "create") {
+      const adminCreated = await createAdminAccount(rc, cleanUrl);
+      if (!adminCreated) return;
+    } else {
+      const existingAdminUser = await ask("管理员用户名");
+      const existingAdminPass = await askPassword("管理员密码");
+      if (!existingAdminUser || !existingAdminPass) {
+        error("用户名和密码不能为空！");
+        return;
+      }
+
+      step("验证管理员身份...");
+      try {
+        const authResult = await rc.login(existingAdminUser, existingAdminPass);
+        await saveAdminCredentials({
+          userId: authResult.userId,
+          authToken: authResult.authToken,
+          username: existingAdminUser,
+          password: existingAdminPass,
+        });
+        success("管理员身份验证成功");
+      } catch (err) {
+        error(`登录失败: ${(err as Error).message}`);
+        info("请检查用户名和密码是否正确，以及该账号是否具有管理员权限。");
+        return;
+      }
     }
   }
 
@@ -269,11 +355,24 @@ async function createAdminAccount(
 
     // ---------------------------------------------------
     // 策略 2：用默认 admin/admin 登录（全新 RC 的默认账号）
+    //         登录后立即改为强随机密码（消除弱口令风险）
     // ---------------------------------------------------
     try {
       adminResult = await rc.login("admin", "admin");
       savedUsername = "admin";
-      savedPassword = "admin";
+      rc.setAuth(adminResult.userId, adminResult.authToken);
+
+      // 安全措施 1：立即修改默认弱密码
+      const strongPassword = generatePassword();
+      try {
+        await rc.updateUserPassword(adminResult.userId, strongPassword);
+        savedPassword = strongPassword;
+        info("已将默认管理员密码修改为强随机密码（安全）");
+      } catch {
+        // 改密码失败时保留原密码，不阻断流程
+        savedPassword = "admin";
+        warn("默认管理员密码修改失败，建议手动修改。");
+      }
 
       await saveAdminCredentials({
         userId: adminResult.userId,
@@ -281,9 +380,8 @@ async function createAdminAccount(
         username: savedUsername,
         password: savedPassword,
       });
-      rc.setAuth(adminResult.userId, adminResult.authToken);
 
-      // 安全措施：关闭公开注册 + 禁用邮箱二次验证
+      // 安全措施 2：关闭公开注册 + 禁用邮箱二次验证
       try {
         await rc.setSetting("Accounts_RegistrationForm", "Disabled");
         info("已自动关闭公开注册（安全）");
@@ -296,7 +394,7 @@ async function createAdminAccount(
         // 忽略
       }
 
-      success("管理员已创建");
+      success("管理员已就绪");
       return true;
     } catch {
       // admin/admin 不可用，继续
