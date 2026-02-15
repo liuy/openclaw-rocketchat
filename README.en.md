@@ -635,40 +635,102 @@ openclaw rocketchat uninstall
 
 All commands are **interactive** — no flags to memorize, just follow the prompts.
 
-## Config Example
+## Configuration Reference
 
-All config is written automatically by CLI commands into `openclaw.json` — you don't need to edit it manually:
+All config is written automatically by CLI commands into `~/.openclaw/openclaw.json`. You normally don't need to edit it manually, but understanding the structure helps with troubleshooting and advanced customization.
+
+### channels.rocketchat — Channel Config
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `enabled` | `boolean` | Enable/disable the Rocket.Chat channel |
+| `serverUrl` | `string` | Rocket.Chat server URL, e.g. `"https://123-45-67-89.sslip.io"` |
+| `accounts` | `object` | Bot accounts. Key is the account ID |
+| `accounts.<id>.botUsername` | `string` | Bot's username in RC |
+| `accounts.<id>.botDisplayName` | `string` | Bot's display name |
+| `groups` | `object` | Group config (optional). Key is group name |
+| `groups.<name>.bots` | `string[]` | Bots in this group |
+| `groups.<name>.requireMention` | `boolean` | Whether bot requires @mention to respond in groups |
+
+### bindings — Agent Bindings
+
+The `bindings` array maps bot accounts to Agents:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `agentId` | `string` | The Agent ID to bind to (e.g. `"main"`) |
+| `match.channel` | `string` | Always `"rocketchat"` |
+| `match.accountId` | `string` | Matches a key in `accounts` |
+
+### plugins.entries — Plugin State
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `openclaw-rocketchat.enabled` | `boolean` | Whether the plugin is enabled |
+
+### Full Config Example
 
 ```json5
 {
-  // Agents are managed by openclaw agents add (plugin doesn't touch these)
-  agents: {
-    list: [
-      { id: "main", default: true },
-      { id: "work", name: "Work Helper" },
-    ],
+  // Agents managed by openclaw agents add
+  "agents": {
+    "list": [
+      { "id": "main", "default": true },
+      { "id": "work", "name": "Work Helper" }
+    ]
   },
 
-  // Everything below is written automatically by plugin CLI commands
-  bindings: [
-    { agentId: "main", match: { channel: "rocketchat", accountId: "molty" } },
-    { agentId: "work", match: { channel: "rocketchat", accountId: "work-claw" } },
+  // Bot → Agent bindings (written by add-bot)
+  "bindings": [
+    { "agentId": "main", "match": { "channel": "rocketchat", "accountId": "molty" } },
+    { "agentId": "work", "match": { "channel": "rocketchat", "accountId": "work-claw" } }
   ],
-  channels: {
-    rocketchat: {
-      enabled: true,
-      serverUrl: "https://123-45-67-89.sslip.io",
-      accounts: {
-        molty: { botUsername: "molty", botDisplayName: "Lobster" },
-        "work-claw": { botUsername: "work-claw", botDisplayName: "Work Helper" },
+
+  // Rocket.Chat channel config (written by setup / add-bot)
+  "channels": {
+    "rocketchat": {
+      "enabled": true,
+      "serverUrl": "https://123-45-67-89.sslip.io",
+      "accounts": {
+        "molty": { "botUsername": "molty", "botDisplayName": "Lobster" },
+        "work-claw": { "botUsername": "work-claw", "botDisplayName": "Work Helper" }
       },
-      groups: {
-        "AI Squad": { requireMention: false, bots: ["molty", "work-claw"] },
-      },
-    },
+      "groups": {
+        "AI Squad": { "requireMention": false, "bots": ["molty", "work-claw"] }
+      }
+    }
   },
+
+  // Plugin state
+  "plugins": {
+    "entries": {
+      "openclaw-rocketchat": { "enabled": true }
+    }
+  }
 }
 ```
+
+### Manual Editing
+
+If auto-configuration has issues, edit `~/.openclaw/openclaw.json` directly:
+
+```bash
+# Edit config
+vi ~/.openclaw/openclaw.json
+
+# Restart gateway to apply changes
+openclaw gateway restart
+```
+
+**Common manual edits:**
+
+- **Change server URL**: Edit `channels.rocketchat.serverUrl`
+- **Disable/enable channel**: Edit `channels.rocketchat.enabled`
+- **Rebind bot to different Agent**: Edit `bindings` array, change `agentId`
+- **Remove a bot**: Delete entries from both `accounts` and `bindings`
+- **Toggle @mention requirement**: Edit `groups.<name>.requireMention`
+
+> **Note**: Bot credentials (passwords, tokens) are stored in `~/.openclaw/credentials/`, separate from `openclaw.json`. If you reinstall a bot, clean up the credentials directory as well.
 
 ## Architecture
 

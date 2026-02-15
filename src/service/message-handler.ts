@@ -1,35 +1,48 @@
 // ============================================================
 // 消息桥接：RC 消息 <-> OpenClaw Agent
-// 入站：接收 RC 消息 → 路由到 Agent
+// 入站：接收 RC 消息 → dispatchInboundMessage → Agent 处理 → 回调回复
 // 出站：Agent 回复 → 格式化 → 发回 RC
 // ============================================================
 
-import { execFile } from "node:child_process";
-import { promisify } from "node:util";
 import type { RcMessage, RocketchatChannelConfig } from "../rc-api/types.js";
 import type { BotManager } from "./bot-manager.js";
-
-const execFileAsync = promisify(execFile);
+import type { OpenClawInternals } from "../gateway/openclaw-internals.js";
 
 /** 长文本分块大小（Rocket.Chat 单条消息建议不超过 4000 字符） */
 const MAX_MESSAGE_LENGTH = 4000;
+
+/** Rocket.Chat 广播提及用户名：@here / @all / @everyone 不应触发机器人响应 */
+const BROADCAST_MENTION_USERNAMES = new Set(["here", "all", "everyone"]);
+
+/** 群组房间信息（由 ChannelService 注册） */
+interface GroupRoomInfo {
+  groupName: string;
+  requireMention: boolean;
+  bots: string[];
+}
 
 interface MessageHandlerOptions {
   botManager: BotManager;
   config: Partial<RocketchatChannelConfig>;
   logger?: { info: (msg: string) => void; error: (msg: string) => void };
+  /** OpenClaw 内部模块引用（用于入站消息分发） */
+  internals?: OpenClawInternals | null;
 }
 
 export class MessageHandler {
   private botManager: BotManager;
   private config: Partial<RocketchatChannelConfig>;
   private logger: { info: (msg: string) => void; error: (msg: string) => void };
+  private internals: OpenClawInternals | null;
   /** 正在处理中的消息 ID 集合（防止并发重复处理） */
   private processingMessages = new Set<string>();
+  /** 群组房间映射：roomId → GroupRoomInfo（用于区分 DM 和群组） */
+  private groupRooms = new Map<string, GroupRoomInfo>();
 
   constructor(options: MessageHandlerOptions) {
     this.botManager = options.botManager;
     this.config = options.config;
+    this.internals = options.internals || null;
     this.logger = options.logger || {
       info: (msg: string) => console.log(`[RC MessageHandler] ${msg}`),
       error: (msg: string) => console.error(`[RC MessageHandler] ${msg}`),
@@ -54,9 +67,9 @@ export class MessageHandler {
     const msgKey = `${roomId}:${msg._id}`;
     if (this.processingMessages.has(msgKey)) return;
     this.processingMessages.add(msgKey);
-    // 处理完成后清理（30 秒超时兜底）
+    // 处理完成后清理（60 秒超时兜底）
     const cleanup = () => this.processingMessages.delete(msgKey);
-    setTimeout(cleanup, 30000);
+    setTimeout(cleanup, 60000);
 
     // 检查 @提及 规则（群组消息）
     if (!this.shouldRespond(msg, botUsername, roomId)) {
@@ -84,21 +97,22 @@ export class MessageHandler {
       return;
     }
 
-    // 通过 openclaw message send CLI 发送给 Agent
     this.logger.info(
       `入站: ${msg.u.username} -> ${botUsername} (Agent: ${agentId}): ${text.slice(0, 100)}...`,
     );
 
     try {
-      await this.sendToOpenClaw(
+      await this.dispatchToAgent(
         text,
         botUsername,
         msg.u.username,
         roomId,
+        agentId,
+        msg._id,
       );
     } catch (err) {
       const errMsg = (err as Error).message || "";
-      this.logger.error(`发送到 OpenClaw 失败: ${errMsg}`);
+      this.logger.error(`分发到 Agent 失败: ${errMsg}`);
 
       // 如果 Agent 不存在或绑定丢失，回复用户一条友好提示
       if (
@@ -152,97 +166,211 @@ export class MessageHandler {
   }
 
   // ----------------------------------------------------------
-  // 内部：消息路由
+  // 内部：入站消息分发
+  // ----------------------------------------------------------
+
+  /**
+   * 将消息分发到 OpenClaw Agent
+   *
+   * 使用 dispatchInboundMessage（进程内直接调用）
+   * 需要 OpenClaw 内部模块可用（在 Gateway 进程内运行时自动加载）
+   */
+  private async dispatchToAgent(
+    text: string,
+    botUsername: string,
+    senderId: string,
+    roomId: string,
+    agentId: string,
+    messageId: string,
+  ): Promise<void> {
+    if (this.internals) {
+      await this.dispatchViaInternals(
+        text,
+        botUsername,
+        senderId,
+        roomId,
+        agentId,
+        messageId,
+      );
+    } else {
+      this.logger.error(
+        "OpenClaw 内部模块不可用，入站消息无法分发到 Agent",
+      );
+    }
+  }
+
+  /**
+   * 通过 OpenClaw 内部 API 分发入站消息（首选方式）
+   *
+   * 构造 MsgContext → dispatchInboundMessage → Agent 处理
+   * Agent 回复通过 dispatcher 的 deliver 回调直接发送到 RC
+   */
+  private async dispatchViaInternals(
+    text: string,
+    botUsername: string,
+    senderId: string,
+    roomId: string,
+    agentId: string,
+    messageId: string,
+  ): Promise<void> {
+    const internals = this.internals!;
+
+    // 加载最新配置
+    let cfg: Record<string, unknown>;
+    try {
+      cfg = internals.loadConfig();
+    } catch {
+      // 如果 loadConfig 失败，尝试用空配置
+      cfg = {};
+    }
+
+    // 判断是 DM 还是群组
+    const groupInfo = this.groupRooms.get(roomId);
+    const isGroup = !!groupInfo;
+    const chatType = isGroup ? "group" : "direct";
+
+    // 构造 session key（格式参考 Telegram/Discord 等核心频道）
+    const sessionKey = isGroup
+      ? `agent:${agentId}:rocketchat:group:${botUsername}:${roomId}`
+      : `agent:${agentId}:rocketchat:dm:${botUsername}:${roomId}`;
+
+    // 构造 MsgContext（OpenClaw 入站消息上下文）
+    const ctx: Record<string, unknown> = {
+      Body: text,
+      BodyForAgent: text,
+      RawBody: text,
+      CommandBody: text,
+      BodyForCommands: text,
+      From: isGroup
+        ? `rocketchat:group:${roomId}:${senderId}`
+        : `rocketchat:${senderId}`,
+      To: isGroup
+        ? `rocketchat:group:${roomId}`
+        : `rocketchat:dm:${botUsername}`,
+      SessionKey: sessionKey,
+      AccountId: botUsername,
+      Provider: "rocketchat",
+      Surface: "rocketchat",
+      OriginatingChannel: "rocketchat",
+      OriginatingTo: roomId,
+      ChatType: chatType,
+      CommandAuthorized: true,
+      MessageSid: messageId,
+      SenderId: senderId,
+      SenderName: senderId,
+      SenderUsername: senderId,
+    };
+
+    // 群组消息额外字段
+    if (isGroup && groupInfo) {
+      ctx.GroupSubject = groupInfo.groupName;
+    }
+
+    // 创建 reply dispatcher —— Agent 回复通过 deliver 回调直接发到 RC
+    const replyParts: string[] = [];
+    const dispatcher = internals.createReplyDispatcher({
+      deliver: async (
+        payload: { text?: string; mediaUrl?: string },
+        info: { kind: string },
+      ) => {
+        const replyText = payload.text?.trim() ?? "";
+        if (!replyText) return;
+        replyParts.push(replyText);
+
+        // 实时发送每个回复块到 RC（而不是等全部完成再发）
+        if (info.kind === "final" || info.kind === "block") {
+          try {
+            await this.handleOutbound(replyText, botUsername, roomId);
+          } catch (err) {
+            this.logger.error(
+              `回复发送失败: ${(err as Error).message}`,
+            );
+          }
+        }
+      },
+      onError: (err: unknown) => {
+        this.logger.error(
+          `Agent 处理错误: ${err instanceof Error ? err.message : String(err)}`,
+        );
+      },
+    });
+
+    // 分发入站消息 → Agent 处理 → 回复通过 deliver 回调发送
+    await internals.dispatchInboundMessage({
+      ctx,
+      cfg,
+      dispatcher,
+    });
+
+    // 如果 Agent 没有通过 dispatcher 回复（例如命令处理后无输出），
+    // replyParts 为空也是正常的
+    if (replyParts.length === 0) {
+      this.logger.info(`Agent 处理完成，无回复内容（可能是命令或空响应）`);
+    }
+  }
+
+  // ----------------------------------------------------------
+  // 群组房间注册
+  // ----------------------------------------------------------
+
+  /**
+   * 注册群组房间（由 ChannelService.ensureGroups 调用）
+   * 用于区分 DM 和群组，以及获取群组的 requireMention 配置
+   */
+  registerGroupRoom(roomId: string, info: GroupRoomInfo): void {
+    this.groupRooms.set(roomId, info);
+  }
+
+  // ----------------------------------------------------------
+  // 内部：@提及 判断
   // ----------------------------------------------------------
 
   /**
    * 判断机器人是否应该响应该消息
-   * - DM 消息：始终响应
-   * - 群组消息：根据 requireMention 规则判断
+   *
+   * DM 消息：始终响应（roomId 不在 groupRooms 中）
+   * 群组消息：
+   *   1. 过滤广播提及（@here / @all / @everyone）—— 仅广播提及时不响应
+   *   2. 如果群组配置了 requireMention，只有直接 @机器人 才响应
+   *   3. 如果未配置 requireMention，除了广播提及外都响应
    */
   private shouldRespond(
     msg: RcMessage,
     botUsername: string,
     roomId: string,
   ): boolean {
-    // 检查是否在群组中且需要 @提及
-    const groups = this.config.groups || {};
-    for (const [, groupConfig] of Object.entries(groups)) {
-      if (groupConfig.bots?.includes(botUsername) && groupConfig.requireMention) {
-        // 需要 @提及 才响应
-        const isMentioned = msg.mentions?.some(
-          (m) => m.username === botUsername,
-        );
-        if (!isMentioned) {
-          return false;
-        }
-      }
+    const groupInfo = this.groupRooms.get(roomId);
+
+    // DM 消息：始终响应
+    if (!groupInfo) {
+      return true;
+    }
+
+    // ---- 群组消息逻辑 ----
+
+    const mentions = msg.mentions || [];
+
+    // 检查机器人是否被直接 @提及（排除广播提及）
+    const isBotMentioned = mentions.some(
+      (m) => m.username === botUsername,
+    );
+
+    // 检查消息是否包含广播提及（@here / @all / @everyone）
+    const hasBroadcastMention = mentions.some(
+      (m) => BROADCAST_MENTION_USERNAMES.has(m.username),
+    );
+
+    // 如果消息只有广播提及、没有直接 @机器人 → 不响应
+    if (hasBroadcastMention && !isBotMentioned) {
+      return false;
+    }
+
+    // 如果群组要求 @提及 才响应
+    if (groupInfo.requireMention && !isBotMentioned) {
+      return false;
     }
 
     return true;
-  }
-
-  /**
-   * 通过 openclaw CLI 将消息发送给 Agent
-   */
-  private async sendToOpenClaw(
-    text: string,
-    accountId: string,
-    senderId: string,
-    roomId: string,
-  ): Promise<void> {
-    // 基本校验：确保标识符不为空、不包含控制字符
-    if (!accountId || !senderId || !roomId) {
-      this.logger.error("sendToOpenClaw: 缺少必要的标识符参数");
-      return;
-    }
-
-    // execFileAsync 不走 shell，参数不会被 shell 解析，注入风险极低
-    const args = [
-      "message",
-      "send",
-      "--channel",
-      "rocketchat",
-      "--account",
-      accountId,
-      "--target",
-      roomId,
-      "-m",
-      text,
-    ];
-
-    // 尝试传递 sender 信息（如果 CLI 版本不支持 --from，忽略即可）
-    if (senderId) {
-      args.push("--from", senderId);
-    }
-
-    try {
-      await execFileAsync("openclaw", args, { timeout: 30000 });
-    } catch (err: unknown) {
-      const msg = (err as Error).message || "";
-      // 如果是 --from 不支持，降级为不传 sender 重试
-      if (msg.includes("unknown option") && msg.includes("--from")) {
-        this.logger.info("CLI 不支持 --from，降级重试（不含 sender）");
-        await execFileAsync(
-          "openclaw",
-          [
-            "message",
-            "send",
-            "--channel",
-            "rocketchat",
-            "--account",
-            accountId,
-            "--target",
-            roomId,
-            "-m",
-            text,
-          ],
-          { timeout: 30000 },
-        );
-      } else {
-        throw err;
-      }
-    }
   }
 
   // ----------------------------------------------------------

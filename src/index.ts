@@ -88,8 +88,33 @@ export default function register(api: any): void {
           return cfg?.accounts?.[accountId] || null;
         },
       },
+      messaging: {
+        targetResolver: {
+          hint: "Use a Rocket.Chat room ID (24-char hex), or prefix with # for channels, @ for users.",
+          /**
+           * Rocket.Chat 的 target 是 MongoDB ObjectId（24 位十六进制字符串）
+           * 默认的 looksLikeTargetId 无法识别这种格式，导致 "Unknown target" 错误
+           */
+          looksLikeId: (raw: string, _normalized: string): boolean => {
+            const trimmed = raw.trim();
+            // MongoDB ObjectId: 24-char hex string
+            if (/^[a-f0-9]{17,24}$/i.test(trimmed)) {
+              return true;
+            }
+            // Prefixed forms: channel:xxx, group:xxx, user:xxx
+            if (/^(channel|group|user):/i.test(trimmed)) {
+              return true;
+            }
+            // @username or #channel
+            if (/^[@#]/.test(trimmed)) {
+              return true;
+            }
+            return false;
+          },
+        },
+      },
       outbound: {
-        deliveryMode: "direct" as const,
+        deliveryMode: "gateway" as const,
         /**
          * Agent 回复 → 发送到 Rocket.Chat
          */

@@ -209,6 +209,11 @@ export class BotManager {
       return;
     }
 
+    // 忽略所有已注册机器人发的消息（防止群组中机器人互相触发）
+    if (this.bots.has(msg.u?.username)) {
+      return;
+    }
+
     // 忽略系统消息
     if (msg.t) {
       return;

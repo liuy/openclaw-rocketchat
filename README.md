@@ -635,40 +635,102 @@ openclaw rocketchat uninstall
 
 所有命令都是**交互式**的——不需要记参数，按提示输入即可。
 
-## 配置示例
+## 配置参数详解
 
-所有配置由 CLI 命令自动写入 `openclaw.json`，你不需要手动编辑：
+所有配置由 CLI 命令自动写入 `~/.openclaw/openclaw.json`。通常你不需要手动编辑，但了解配置结构有助于排查问题和高级自定义。
+
+### channels.rocketchat — 频道配置
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `enabled` | `boolean` | 是否启用 Rocket.Chat 频道。`true` 启用，`false` 禁用 |
+| `serverUrl` | `string` | Rocket.Chat 服务器地址，如 `"https://123-45-67-89.sslip.io"`。Gateway 通过此地址连接 RC |
+| `accounts` | `object` | 机器人账号列表，key 为账号 ID |
+| `accounts.<id>.botUsername` | `string` | 机器人在 RC 中的用户名 |
+| `accounts.<id>.botDisplayName` | `string` | 机器人显示昵称 |
+| `groups` | `object` | 群组配置（可选），key 为群组名 |
+| `groups.<name>.bots` | `string[]` | 群组中的机器人列表 |
+| `groups.<name>.requireMention` | `boolean` | 群组中是否需要 @提及 机器人才回复 |
+
+### bindings — Agent 绑定
+
+`bindings` 数组将机器人账号绑定到 Agent：
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `agentId` | `string` | 绑定的 Agent ID（如 `"main"`） |
+| `match.channel` | `string` | 固定为 `"rocketchat"` |
+| `match.accountId` | `string` | 对应 `accounts` 中的 key |
+
+### plugins.entries — 插件状态
+
+| 参数 | 类型 | 说明 |
+|------|------|------|
+| `openclaw-rocketchat.enabled` | `boolean` | 插件是否启用 |
+
+### 完整配置示例
 
 ```json5
 {
-  // Agent 由 openclaw agents add 管理（插件不干预）
-  agents: {
-    list: [
-      { id: "main", default: true },
-      { id: "work", name: "工作助手" },
-    ],
+  // Agent 由 openclaw agents add 管理
+  "agents": {
+    "list": [
+      { "id": "main", "default": true },
+      { "id": "work", "name": "工作助手" }
+    ]
   },
 
-  // 以下由插件 CLI 命令自动写入
-  bindings: [
-    { agentId: "main", match: { channel: "rocketchat", accountId: "molty" } },
-    { agentId: "work", match: { channel: "rocketchat", accountId: "work-claw" } },
+  // 机器人 → Agent 绑定（由 add-bot 自动写入）
+  "bindings": [
+    { "agentId": "main", "match": { "channel": "rocketchat", "accountId": "molty" } },
+    { "agentId": "work", "match": { "channel": "rocketchat", "accountId": "work-claw" } }
   ],
-  channels: {
-    rocketchat: {
-      enabled: true,
-      serverUrl: "https://123-45-67-89.sslip.io",
-      accounts: {
-        molty: { botUsername: "molty", botDisplayName: "小龙虾" },
-        "work-claw": { botUsername: "work-claw", botDisplayName: "工作助手" },
+
+  // Rocket.Chat 频道配置（由 setup / add-bot 自动写入）
+  "channels": {
+    "rocketchat": {
+      "enabled": true,
+      "serverUrl": "https://123-45-67-89.sslip.io",
+      "accounts": {
+        "molty": { "botUsername": "molty", "botDisplayName": "小龙虾" },
+        "work-claw": { "botUsername": "work-claw", "botDisplayName": "工作助手" }
       },
-      groups: {
-        "AI全能群": { requireMention: false, bots: ["molty", "work-claw"] },
-      },
-    },
+      "groups": {
+        "AI全能群": { "requireMention": false, "bots": ["molty", "work-claw"] }
+      }
+    }
   },
+
+  // 插件状态
+  "plugins": {
+    "entries": {
+      "openclaw-rocketchat": { "enabled": true }
+    }
+  }
 }
 ```
+
+### 手动修改配置
+
+如果自动配置出现问题，可以直接编辑 `~/.openclaw/openclaw.json`：
+
+```bash
+# 编辑配置
+vi ~/.openclaw/openclaw.json
+
+# 修改后重启 gateway 生效
+openclaw gateway restart
+```
+
+**常见手动修改场景：**
+
+- **更换服务器地址**：修改 `channels.rocketchat.serverUrl`
+- **禁用/启用频道**：修改 `channels.rocketchat.enabled`
+- **修改机器人绑定的 Agent**：修改 `bindings` 数组中对应条目的 `agentId`
+- **删除机器人**：从 `accounts` 和 `bindings` 中删除对应条目
+- **修改群组的 @提及 规则**：修改 `groups.<name>.requireMention`
+
+> **注意**: 机器人的凭据（密码、token）存储在 `~/.openclaw/credentials/` 目录下，与 `openclaw.json` 分离。如果重装机器人，需要同时清理凭据文件。
 
 ## 架构
 

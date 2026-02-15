@@ -10,6 +10,8 @@ import {
   loadAdminCredentials,
   loadBotCredentials,
 } from "../config/credentials.js";
+import { loadOpenClawInternals } from "../gateway/openclaw-internals.js";
+import type { OpenClawInternals } from "../gateway/openclaw-internals.js";
 import type { RocketchatChannelConfig, OpenClawBinding } from "../rc-api/types.js";
 
 interface ChannelServiceOptions {
@@ -24,6 +26,7 @@ export class ChannelService {
   private botManager: BotManager | null = null;
   private messageHandler: MessageHandler | null = null;
   private adminClient: RocketChatRestClient | null = null;
+  private internals: OpenClawInternals | null = null;
   private logger: { info: (msg: string) => void; error: (msg: string) => void };
   private running = false;
 
@@ -76,25 +79,42 @@ export class ChannelService {
       return;
     }
 
-    // 2. 初始化 BotManager
+    // 2. 加载 OpenClaw 内部模块（用于入站消息分发）
+    try {
+      this.internals = await loadOpenClawInternals();
+      if (this.internals) {
+        this.logger.info("OpenClaw 内部模块已加载（进程内直连模式）");
+      } else {
+        this.logger.error(
+          "无法加载 OpenClaw 内部模块，入站消息将无法路由到 Agent",
+        );
+      }
+    } catch (err) {
+      this.logger.error(
+        `加载 OpenClaw 内部模块失败: ${(err as Error).message}`,
+      );
+    }
+
+    // 3. 初始化 BotManager
     this.botManager = new BotManager(this.config.serverUrl, this.logger);
 
-    // 3. 初始化 MessageHandler
+    // 4. 初始化 MessageHandler
     this.messageHandler = new MessageHandler({
       botManager: this.botManager,
       config: this.config,
       logger: this.logger,
+      internals: this.internals,
     });
 
-    // 4. 设置消息回调
+    // 5. 设置消息回调
     this.botManager.onMessage((msg, roomId, botUsername, agentId) => {
       this.messageHandler!.handleInbound(msg, roomId, botUsername, agentId);
     });
 
-    // 5. 连接所有机器人
+    // 6. 连接所有机器人
     await this.connectBots();
 
-    // 6. 确保所有群组存在并订阅
+    // 7. 确保所有群组存在并订阅
     await this.ensureGroups();
 
     this.running = true;
@@ -195,6 +215,13 @@ export class ChannelService {
         );
 
         if (groupInfo) {
+          // 注册群组房间信息到 MessageHandler（用于区分 DM/群组 + @提及过滤）
+          this.messageHandler?.registerGroupRoom(groupInfo._id, {
+            groupName,
+            requireMention: groupConfig.requireMention ?? false,
+            bots: groupConfig.bots || [],
+          });
+
           // 群组存在，为其中的每个机器人订阅消息
           for (const botUsername of groupConfig.bots || []) {
             await this.botManager!.subscribeRoom(botUsername, groupInfo._id);
