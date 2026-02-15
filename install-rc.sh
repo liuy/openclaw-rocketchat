@@ -91,7 +91,8 @@ elif [[ -f "${INSTALL_DIR}/docker-compose.yml" ]]; then
     done
     [[ -z "$PUBLIC_IP" ]] && PUBLIC_IP="<你的公网IP>"
 
-    info "服务器地址: https://${PUBLIC_IP}"
+    RC_DOMAIN="${PUBLIC_IP//./-}.sslip.io"
+    info "服务器地址: https://${RC_DOMAIN}"
     echo ""
     info "如果需要重新安装，请先运行："
     info "  cd ${INSTALL_DIR} && ${COMPOSE_CMD_CHECK} down -v"
@@ -215,7 +216,7 @@ else
 fi
 
 # -----------------------------------------------
-# 4. 获取公网 IP（用于证书生成）
+# 4. 获取公网 IP
 # -----------------------------------------------
 step "获取服务器公网 IP..."
 
@@ -239,21 +240,77 @@ fi
 
 success "公网 IP: ${PUBLIC_IP}"
 
-# -----------------------------------------------
-# 5. 生成自签名 SSL 证书
-# -----------------------------------------------
-step "生成 HTTPS 自签名证书..."
+# 生成 sslip.io 域名（免费，无需购买域名）
+# 例如 166.88.11.59 -> 166-88-11-59.sslip.io
+RC_DOMAIN="${PUBLIC_IP//./-}.sslip.io"
+info "域名: ${RC_DOMAIN}（通过 sslip.io 免费提供）"
 
+# -----------------------------------------------
+# 5. 获取 SSL 证书（Let's Encrypt 优先，自签名兜底）
+# -----------------------------------------------
 SSL_DIR="${INSTALL_DIR}/ssl"
 mkdir -p "${SSL_DIR}"
+USE_LETSENCRYPT=false
 
-openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
-  -keyout "${SSL_DIR}/rocketchat.key" \
-  -out "${SSL_DIR}/rocketchat.crt" \
-  -subj "/CN=${PUBLIC_IP}" \
-  2>/dev/null
+step "尝试获取 Let's Encrypt 免费证书..."
+info "（需要 80 端口可用，如果失败会自动使用自签名证书）"
 
-success "证书已生成（有效期 10 年）"
+# 检查 80 端口是否可用（certbot 需要）
+PORT80_FREE=true
+if command -v ss &>/dev/null; then
+  if ss -tlnp 2>/dev/null | grep -q ":80 "; then
+    PORT80_FREE=false
+  fi
+fi
+
+if [[ "$PORT80_FREE" == "true" ]]; then
+  # 安装 certbot（如果没有）
+  if ! command -v certbot &>/dev/null; then
+    step "安装 certbot..."
+    if command -v apt-get &>/dev/null; then
+      apt-get update -qq && apt-get install -y -qq certbot 2>/dev/null
+    elif command -v yum &>/dev/null; then
+      yum install -y certbot 2>/dev/null
+    fi
+  fi
+
+  if command -v certbot &>/dev/null; then
+    # 用 standalone 模式获取证书
+    if certbot certonly --standalone --non-interactive --agree-tos \
+      --register-unsafely-without-email \
+      -d "${RC_DOMAIN}" 2>/dev/null; then
+      # 复制证书到安装目录
+      cp "/etc/letsencrypt/live/${RC_DOMAIN}/fullchain.pem" "${SSL_DIR}/rocketchat.crt"
+      cp "/etc/letsencrypt/live/${RC_DOMAIN}/privkey.pem" "${SSL_DIR}/rocketchat.key"
+      USE_LETSENCRYPT=true
+      success "Let's Encrypt 证书获取成功！（自动续期）"
+
+      # 设置自动续期 cron
+      RENEW_CMD="certbot renew --quiet && cp /etc/letsencrypt/live/${RC_DOMAIN}/fullchain.pem ${SSL_DIR}/rocketchat.crt && cp /etc/letsencrypt/live/${RC_DOMAIN}/privkey.pem ${SSL_DIR}/rocketchat.key && cd ${INSTALL_DIR} && ${COMPOSE_CMD} restart nginx"
+      (crontab -l 2>/dev/null; echo "0 3 * * * ${RENEW_CMD}") | sort -u | crontab -
+      info "已设置证书自动续期（每天凌晨 3 点检查）"
+    else
+      warn "Let's Encrypt 证书获取失败，使用自签名证书"
+    fi
+  else
+    warn "certbot 未安装成功，使用自签名证书"
+  fi
+else
+  warn "80 端口被占用，跳过 Let's Encrypt，使用自签名证书"
+fi
+
+# 如果 Let's Encrypt 失败，使用自签名证书
+if [[ "$USE_LETSENCRYPT" != "true" ]]; then
+  step "生成 HTTPS 自签名证书..."
+  openssl req -x509 -nodes -days 3650 -newkey rsa:2048 \
+    -keyout "${SSL_DIR}/rocketchat.key" \
+    -out "${SSL_DIR}/rocketchat.crt" \
+    -subj "/CN=${RC_DOMAIN}" \
+    -addext "subjectAltName=DNS:${RC_DOMAIN},IP:${PUBLIC_IP}" \
+    2>/dev/null
+  success "自签名证书已生成（有效期 10 年）"
+  info "注意：App 首次连接可能需要信任证书"
+fi
 
 # -----------------------------------------------
 # 6. 生成 Nginx 配置
@@ -283,6 +340,12 @@ server {
         proxy_set_header X-Forwarded-Proto https;
     }
 }
+
+server {
+    listen 80;
+    server_name _;
+    return 301 https://$host$request_uri;
+}
 NGINX_EOF
 
 success "Nginx 配置已生成"
@@ -302,6 +365,7 @@ services:
     restart: unless-stopped
     ports:
       - "443:443"
+      - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
       - ./ssl:/etc/nginx/ssl:ro
@@ -315,7 +379,7 @@ services:
       - "3000"
     environment:
       MONGO_URL: "mongodb://mongodb:27017/rocketchat?replicaSet=rs0"
-      ROOT_URL: "https://${PUBLIC_IP}"
+      ROOT_URL: "https://${RC_DOMAIN}"
       PORT: 3000
       DEPLOY_METHOD: docker
       OVERWRITE_SETTING_Show_Setup_Wizard: "completed"
@@ -417,9 +481,14 @@ echo "╔═══════════════════════�
 echo "║              🎉 Rocket.Chat 安装完成！                    ║"
 echo "╚══════════════════════════════════════════════════════════╝"
 echo ""
-info "服务器地址: https://${PUBLIC_IP}"
+info "服务器地址: https://${RC_DOMAIN}"
 info "安装目录:   ${INSTALL_DIR}"
-info "HTTPS:      自签名证书（App 首次连接时信任即可）"
+if [[ "$USE_LETSENCRYPT" == "true" ]]; then
+  info "HTTPS:      Let's Encrypt 正式证书（自动续期）"
+else
+  info "HTTPS:      自签名证书（App 首次连接时信任即可）"
+fi
+info "域名:       ${RC_DOMAIN}（由 sslip.io 免费提供，无需购买）"
 echo ""
 info "📌 接下来的步骤："
 echo ""
@@ -435,15 +504,19 @@ echo -e "     ${CYAN}openclaw plugins install openclaw-rocketchat${NC}"
 echo -e "     ${CYAN}openclaw rocketchat setup${NC}"
 echo ""
 info "     setup 时输入服务器地址："
-echo -e "     ${GREEN}https://${PUBLIC_IP}${NC}"
+echo -e "     ${GREEN}https://${RC_DOMAIN}${NC}"
 echo ""
 info "  3️⃣  添加 AI 机器人："
 echo ""
 echo -e "     ${CYAN}openclaw rocketchat add-bot${NC}"
 echo ""
 info "  4️⃣  手机下载 Rocket.Chat App："
-info "     App 里输入服务器地址: https://${PUBLIC_IP}"
-info "     首次连接会提示证书不受信任，点「信任」或「继续」即可"
+info "     App 里输入服务器地址: https://${RC_DOMAIN}"
+if [[ "$USE_LETSENCRYPT" == "true" ]]; then
+  info "     证书已受信任，直接连接即可"
+else
+  info "     首次连接会提示证书不受信任，点「信任」或「继续」即可"
+fi
 echo ""
 info "🔧 常用管理命令："
 info "  查看日志:   cd ${INSTALL_DIR} && ${COMPOSE_CMD} logs -f"
