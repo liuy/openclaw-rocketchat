@@ -65,7 +65,7 @@ AI Brain (OpenClaw Agent)
 ```
 
 > Mode B is great for: OpenClaw on home LAN without public IP, low-memory servers, or companies with existing RC instances.
-> Install RC on remote VPS with one command: `curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash`
+> Install RC on remote VPS with one command: `curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash`
 
 **Either way, your AI data never passes through third parties.**
 
@@ -250,7 +250,7 @@ bash install-rc.sh
 Or install remotely without downloading first:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
 ```
 
 You'll see:
@@ -398,7 +398,7 @@ If you chose Mode B (split deployment), run on your remote VPS:
 
 ```bash
 # SSH into your VPS, then one-click install:
-curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
 
 # Or specify a custom port:
 RC_PORT=4000 bash install-rc.sh

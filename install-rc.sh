@@ -12,7 +12,7 @@
 # 用法：
 #   bash install-rc.sh
 #   或远程一键安装：
-#   curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
+#   curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
 #   或指定端口：
 #   RC_PORT=4000 bash install-rc.sh
 #   强制重装（跳过已安装检测）：

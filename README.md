@@ -65,7 +65,7 @@ AI 大脑（OpenClaw Agent）
 ```
 
 > 方式 B 适用于：OpenClaw 在家庭内网无公网 IP、服务器内存不足想拆分、公司已有 RC 实例等场景。
-> 在远程 VPS 上安装 RC 只需一条命令：`curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash`
+> 在远程 VPS 上安装 RC 只需一条命令：`curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash`
 
 **无论哪种方式，你的 AI 数据都不经过第三方。**
 
@@ -250,7 +250,7 @@ bash install-rc.sh
 或者远程一键安装（不用提前下载脚本）：
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
 ```
 
 你会看到：
@@ -398,7 +398,7 @@ openclaw rocketchat add-bot
 
 ```bash
 # SSH 登录你的 VPS 后，一键安装：
-curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
 
 # 或者指定端口：
 RC_PORT=4000 bash install-rc.sh
