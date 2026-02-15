@@ -8,6 +8,8 @@ import { ConfigWriter } from "../config/writer.js";
 import {
   loadAdminCredentials,
   saveUserRecord,
+  backupUserToRcDir,
+  restoreUserFromRcDir,
 } from "../config/credentials.js";
 import {
   ask,
@@ -59,12 +61,8 @@ export async function addUserCommand(configPath: string): Promise<void> {
     return;
   }
 
-  // 检查用户是否已存在
+  // 检查用户是否已存在（支持插件重装后恢复）
   const existingUser = await rc.getUserInfo(username);
-  if (existingUser) {
-    error(`用户 ${username} 已存在！`);
-    return;
-  }
 
   const password = await askPassword("密码");
   if (!password || password.length < 6) {
@@ -76,6 +74,43 @@ export async function addUserCommand(configPath: string): Promise<void> {
   if (password !== confirmPwd) {
     error("两次密码不一致！");
     return;
+  }
+
+  // 如果用户已存在（插件重装后常见），尝试恢复
+  if (existingUser) {
+    warn(`用户 ${username} 在 Rocket.Chat 中已存在。`);
+
+    // 尝试从备份恢复
+    const backup = await restoreUserFromRcDir(username);
+    if (backup) {
+      info("从安装备份中找到该用户的密码，验证中...");
+      try {
+        await rc.login(username, backup.password);
+        info("备份密码验证成功。");
+      } catch {
+        warn("备份密码已失效，将使用管理员权限重置密码。");
+        try {
+          await rc.updateUserPassword(existingUser._id, password);
+          info("密码已重置为你刚才输入的密码。");
+        } catch (resetErr) {
+          error(`密码重置失败: ${(resetErr as Error).message}`);
+          return;
+        }
+      }
+    } else {
+      // 没有备份，用管理员权限重置密码
+      info("未找到备份，使用管理员权限重置密码...");
+      try {
+        await rc.updateUserPassword(existingUser._id, password);
+        info("密码已重置为你刚才输入的密码。");
+      } catch (resetErr) {
+        error(`密码重置失败: ${(resetErr as Error).message}`);
+        return;
+      }
+    }
+    await saveUserRecord(username, "full"); // 默认先存 full，后面会根据选择覆盖
+    await backupUserToRcDir(username, password);
+    success(`已恢复用户 ${username}`);
   }
 
   // ----------------------------------------------------------
@@ -121,39 +156,50 @@ export async function addUserCommand(configPath: string): Promise<void> {
   }
 
   // ----------------------------------------------------------
-  // 5. 创建用户
+  // 5. 创建用户（如果尚不存在）
   // ----------------------------------------------------------
-  console.log("");
-  step(`创建用户 ${username}...`);
+  let createdUser = existingUser;
 
-  try {
-    await rc.createUser({
-      name: username,
-      email: `${username}@openclaw.local`,
-      password: password,
-      username: username,
-      roles: ["user"],
-      joinDefaultChannels: false,
-      verified: true,
-      requirePasswordChange: false,
-    });
-    await saveUserRecord(username, permission);
-    success(`用户 ${username} 已创建（${permission === "readonly" ? "只读" : "全功能"}）`);
-  } catch (err) {
-    error(`用户创建失败: ${(err as Error).message}`);
-    return;
+  if (!existingUser) {
+    console.log("");
+    step(`创建用户 ${username}...`);
+
+    try {
+      await rc.createUser({
+        name: username,
+        email: `${username}@openclaw.local`,
+        password: password,
+        username: username,
+        roles: ["user"],
+        joinDefaultChannels: false,
+        verified: true,
+        requirePasswordChange: false,
+      });
+      success(`用户 ${username} 已创建（${permission === "readonly" ? "只读" : "全功能"}）`);
+    } catch (err) {
+      error(`用户创建失败: ${(err as Error).message}`);
+      return;
+    }
+
+    createdUser = await rc.getUserInfo(username);
+    if (!createdUser) {
+      error("用户创建后无法获取用户信息！");
+      return;
+    }
   }
 
-  // 获取创建后的用户 ID（后续需要用到）
-  const createdUser = await rc.getUserInfo(username);
-  if (!createdUser) {
-    error("用户创建后无法获取用户信息！");
-    return;
-  }
+  // 保存用户记录和备份（含权限）
+  await saveUserRecord(username, permission);
+  await backupUserToRcDir(username, password);
 
   // ----------------------------------------------------------
   // 6. 加入群组
   // ----------------------------------------------------------
+  if (!createdUser) {
+    error("无法获取用户信息！");
+    return;
+  }
+
   for (const groupName of selectedGroups) {
     step(`将 ${username} 加入「${groupName}」...`);
     try {
@@ -212,7 +258,10 @@ export async function addUserCommand(configPath: string): Promise<void> {
     if (selectedGroups.length > 0) {
       info(`   - 在「${selectedGroups.join("」「")}」里查看 AI 对话记录`);
     }
-    info(`   - （只读模式，无法发送消息）`);
+    info(`   - （只读模式，在群内无法发送消息）`);
+    info("");
+    info("   💡 注意：只读通过群内禁言实现。用户仍可在 App 中搜索机器人发起私聊。");
+    info("      对于家庭/团队自建场景，这通常不是问题。");
   } else {
     if (selectedGroups.length > 0) {
       info(`   - 在「${selectedGroups.join("」「")}」里和团队一起跟 AI 讨论`);

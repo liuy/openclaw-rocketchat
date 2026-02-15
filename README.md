@@ -434,8 +434,7 @@ openclaw rocketchat add-bot
 
 **到这里就全部完成了。总共 3 条命令 + 手机下载 App。**
 
-<details>
-<summary><b>📱 手机端截图演示（点击展开）</b></summary>
+### 📱 手机端截图
 
 | 步骤 | 截图 |
 |------|------|
@@ -444,7 +443,7 @@ openclaw rocketchat add-bot
 | 登录后看到会话列表 | <img src="images/3.jpg" width="280"> |
 | 和 AI 机器人聊天 | <img src="images/4.jpg" width="280"> |
 
-</details>
+> **亮点**：AI 回复中的代码块在 Rocket.Chat App 里会**自动语法高亮、格式化展示**，不像微信/钉钉等 App 把代码挤成一团。技术人员的使用体验远超其他聊天工具。
 
 ---
 

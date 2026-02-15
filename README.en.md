@@ -434,8 +434,7 @@ Bind to which Agent?
 
 **That's it. 3 commands + download an app. You're done.**
 
-<details>
-<summary><b>📱 Mobile App Screenshots (click to expand)</b></summary>
+### 📱 Mobile App Screenshots
 
 | Step | Screenshot |
 |------|-----------|
@@ -444,7 +443,7 @@ Bind to which Agent?
 | Conversation list after login | <img src="images/3.jpg" width="280"> |
 | Chat with your AI bot | <img src="images/4.jpg" width="280"> |
 
-</details>
+> **Highlight**: Code blocks in AI replies are **automatically syntax-highlighted and beautifully formatted** in Rocket.Chat App — unlike WeChat/DingTalk/Slack where code gets squished into unreadable blobs. A much better experience for developers and technical users.
 
 ---
 
