@@ -101,21 +101,27 @@ export async function setupCommand(configPath: string): Promise<void> {
   // ----------------------------------------------------------
   const rcInfo = tryLoadRcInfo();
   let autoMode = false;
+  /** 外部域名（sslip.io），用于最终提示手机连接地址 */
+  let externalDomain: string | undefined;
+
+  // ----------------------------------------------------------
+  // 1. 确定连接方式 + 服务器地址
+  // ----------------------------------------------------------
+  let serverUrl: string;
 
   if (rcInfo) {
-    success(`检测到本机 Rocket.Chat 安装信息`);
-    info(`  服务器地址: ${rcInfo.serverUrl}`);
+    // 能读到 .rc-info → 一定是本机部署
+    success("检测到本机 Rocket.Chat 安装信息");
     if (rcInfo.domain) info(`  域名: ${rcInfo.domain}`);
     if (rcInfo.adminUser) info(`  管理员: ${rcInfo.adminUser}`);
     console.log("");
 
-    const useDetected = await confirm("使用检测到的信息自动配置？（推荐）");
-    if (useDetected) {
-      autoMode = true;
-    }
-  }
-
-  if (!autoMode) {
+    autoMode = true;
+    serverUrl = "https://127.0.0.1";
+    externalDomain = rcInfo.domain;
+    info(`本机部署，使用 ${serverUrl} 连接`);
+  } else {
+    // 未检测到本地安装 → 让用户选择连接方式
     console.log("");
     info("本命令用于连接 Rocket.Chat 服务器并配置插件。");
     info("如果还没有部署 Rocket.Chat，请先运行 install-rc.sh：");
@@ -123,21 +129,21 @@ export async function setupCommand(configPath: string): Promise<void> {
     info("  本机部署:   bash install-rc.sh");
     info("  远程 VPS:   SSH 到 VPS 上运行 bash install-rc.sh");
     console.log("");
-  }
 
-  // ----------------------------------------------------------
-  // 1. 输入服务器地址
-  // ----------------------------------------------------------
-  let serverUrl: string;
-  if (autoMode && rcInfo?.serverUrl) {
-    serverUrl = rcInfo.serverUrl;
-    info(`使用检测到的服务器地址: ${serverUrl}`);
-  } else {
-    const defaultUrl = rcInfo?.serverUrl || "https://127.0.0.1";
-    serverUrl = await ask(
-      "Rocket.Chat 服务器地址\n  （本机部署填 https://127.0.0.1，远程填 install-rc.sh 输出的 https://xxx.sslip.io 地址）",
-      defaultUrl,
-    ) || "";
+    const deployMode = await select("连接方式", [
+      { label: "本机部署（Rocket.Chat 在当前服务器上）", value: "local" },
+      { label: "远程连接（Rocket.Chat 在其他服务器上）", value: "remote" },
+    ]);
+
+    if (deployMode === "local") {
+      serverUrl = "https://127.0.0.1";
+      info(`本机部署，使用 ${serverUrl} 连接`);
+    } else {
+      serverUrl = await ask(
+        "Rocket.Chat 服务器地址\n  （填 install-rc.sh 输出的 https://xxx.sslip.io 地址）",
+        "https://",
+      ) || "";
+    }
   }
 
   if (!serverUrl) {
@@ -277,7 +283,7 @@ export async function setupCommand(configPath: string): Promise<void> {
   // ----------------------------------------------------------
   // 6. 完成提示
   // ----------------------------------------------------------
-  printFinishBanner(cleanUrl, username, port);
+  printFinishBanner(cleanUrl, username, port, externalDomain);
 }
 
 // ==============================================================
@@ -557,10 +563,14 @@ async function createPersonalAccount(
 }
 
 /** 打印完成横幅 */
-function printFinishBanner(serverUrl: string, username: string, _port: number): void {
+function printFinishBanner(
+  serverUrl: string,
+  username: string,
+  _port: number,
+  externalDomain?: string,
+): void {
   // 如果是 localhost/127.0.0.1，提醒用户手机要用公网 IP
   const isLocal = /localhost|127\.0\.0\.1/.test(serverUrl);
-  const isHttps = serverUrl.startsWith("https://");
 
   console.log("");
   console.log("╔══════════════════════════════════════════╗");
@@ -569,7 +579,10 @@ function printFinishBanner(serverUrl: string, username: string, _port: number): 
   console.log("");
   info("📱 手机操作：");
   info(`   1. App Store 搜索下载 "Rocket.Chat"`);
-  if (isLocal) {
+  if (isLocal && externalDomain) {
+    info(`   2. 打开 App，服务器填: https://${externalDomain}`);
+    info("      （手机不能用 127.0.0.1，需要填 sslip.io 域名）");
+  } else if (isLocal) {
     info(`   2. 打开 App，服务器填: install-rc.sh 输出的 https://xxx.sslip.io 地址`);
     info("      （手机不能用 127.0.0.1，需要填 sslip.io 域名或服务器公网 IP）");
   } else {
