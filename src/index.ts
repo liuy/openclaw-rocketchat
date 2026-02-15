@@ -4,6 +4,8 @@
 // ============================================================
 
 import { resolve } from "node:path";
+import { homedir } from "node:os";
+import { existsSync } from "node:fs";
 import { ChannelService } from "./service/channel.js";
 import { setupCommand } from "./cli/setup.js";
 import { addBotCommand } from "./cli/add-bot.js";
@@ -22,11 +24,19 @@ let channelService: ChannelService | null = null;
 
 /**
  * 获取 openclaw.json 路径
- * OpenClaw Gateway 运行在用户的工作区内，配置文件在当前工作目录下
+ * 优先级：缓存 → ~/.openclaw/openclaw.json → cwd/openclaw.json
  */
 function getConfigPath(): string {
   if (configFilePath) return configFilePath;
-  // 默认路径
+
+  // OpenClaw 2026+ 标准路径：~/.openclaw/openclaw.json
+  const homeConfig = resolve(homedir(), ".openclaw", "openclaw.json");
+  if (existsSync(homeConfig)) {
+    configFilePath = homeConfig;
+    return homeConfig;
+  }
+
+  // 兜底：当前工作目录
   return resolve(process.cwd(), "openclaw.json");
 }
 
