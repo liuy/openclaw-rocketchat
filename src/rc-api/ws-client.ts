@@ -49,6 +49,7 @@ export class RocketChatWsClient {
 
   private loginUser = "";
   private loginPassword = "";
+  private loginToken = "";
   private autoReconnect = true;
 
   constructor(serverUrl: string) {
@@ -116,10 +117,11 @@ export class RocketChatWsClient {
     });
   }
 
-  /** DDP 登录 */
+  /** DDP 密码登录 */
   async login(user: string, password: string): Promise<void> {
     this.loginUser = user;
     this.loginPassword = password;
+    this.loginToken = "";
 
     const result = await this.callMethod("login", [
       {
@@ -133,6 +135,20 @@ export class RocketChatWsClient {
 
     if (!result) {
       throw new Error("Login failed: no result");
+    }
+  }
+
+  /** DDP resume token 登录（用于已有 authToken 的场景） */
+  async loginWithToken(token: string): Promise<void> {
+    this.loginToken = token;
+    this.loginPassword = "";
+
+    const result = await this.callMethod("login", [
+      { resume: token },
+    ]);
+
+    if (!result) {
+      throw new Error("Token login failed: no result");
     }
   }
 
@@ -344,8 +360,10 @@ export class RocketChatWsClient {
     this.reconnectTimer = setTimeout(async () => {
       try {
         await this.connect();
-        // 重新登录
-        if (this.loginUser && this.loginPassword) {
+        // 重新登录（支持密码和 token 两种方式）
+        if (this.loginToken) {
+          await this.loginWithToken(this.loginToken);
+        } else if (this.loginUser && this.loginPassword) {
           await this.login(this.loginUser, this.loginPassword);
         }
         // 重新订阅所有房间

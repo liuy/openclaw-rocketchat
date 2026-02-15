@@ -51,13 +51,14 @@ export class BotManager {
   // 机器人生命周期
   // ----------------------------------------------------------
 
-  /** 添加并连接一个机器人 */
+  /** 添加并连接一个机器人（支持密码登录或 authToken 登录） */
   async addBot(
     username: string,
-    password: string,
+    password: string | undefined,
     userId: string,
     agentId: string,
     displayName?: string,
+    authToken?: string,
   ): Promise<void> {
     if (this.bots.has(username)) {
       this.logger.info(`机器人 ${username} 已连接，跳过`);
@@ -82,12 +83,21 @@ export class BotManager {
     // 连接 WebSocket
     try {
       await wsClient.connect();
-      await wsClient.login(username, password);
-      conn.connected = true;
 
-      // 同时设置 REST 客户端的认证
-      const authResult = await restClient.login(username, password);
-      restClient.setAuth(authResult.userId, authResult.authToken);
+      if (authToken) {
+        // Token 模式：直接使用已有的 userId + authToken
+        await wsClient.loginWithToken(authToken);
+        restClient.setAuth(userId, authToken);
+      } else if (password) {
+        // 密码模式：先登录获取 token
+        await wsClient.login(username, password);
+        const authResult = await restClient.login(username, password);
+        restClient.setAuth(authResult.userId, authResult.authToken);
+      } else {
+        throw new Error(`机器人 ${username} 无可用凭据（password 和 authToken 均为空）`);
+      }
+
+      conn.connected = true;
 
       // 监听消息
       wsClient.onMessage((msg, roomId) => {

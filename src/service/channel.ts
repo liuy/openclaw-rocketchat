@@ -169,6 +169,7 @@ export class ChannelService {
           creds.userId,
           agentId,
           account.botDisplayName,
+          creds.authToken,
         );
 
         // 订阅该机器人所有相关的 DM

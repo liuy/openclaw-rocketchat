@@ -111,7 +111,10 @@ export interface AdminCredentials {
 export interface BotCredentials {
   [botUsername: string]: {
     userId: string;
-    password: string;
+    /** 密码（新版保存方式） */
+    password?: string;
+    /** authToken（旧版保存方式，兼容已有部署） */
+    authToken?: string;
   };
 }
 
