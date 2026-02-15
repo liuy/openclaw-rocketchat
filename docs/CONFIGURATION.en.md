@@ -168,15 +168,12 @@ print('Done')
 # 2. Stop Gateway
 openclaw gateway stop
 
-# 3. (Optional) To also reset Rocket.Chat data:
-# cd ~/rocketchat && docker compose down -v
+# 3. (Optional) To also reset Rocket.Chat data (completely remove containers, data, and install directory):
+# cd ~/rocketchat && docker compose down -v && cd ~ && rm -rf ~/rocketchat
 
 # 4. Remove plugin and credentials
 rm -rf ~/.openclaw/extensions/openclaw-rocketchat
 rm -rf ~/.openclaw/credentials/rocketchat*
-
-# 4b. (Optional) Also clean install backups (if you also reset RC in step 3)
-# rm -f ~/rocketchat/.rc-info ~/rocketchat/.rc-credentials
 
 # 5. Reinstall (if you reset RC in step 3, run install-rc.sh first)
 openclaw plugins install openclaw-rocketchat

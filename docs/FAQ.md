@@ -51,8 +51,8 @@ print('Done')
 # 2. 停止 Gateway
 openclaw gateway stop
 
-# 3.（可选）如果也想重置 Rocket.Chat 数据：
-# cd ~/rocketchat && docker compose down -v
+# 3.（可选）如果也想重置 Rocket.Chat 数据（彻底删除容器、数据和安装目录）：
+# cd ~/rocketchat && docker compose down -v && cd ~ && rm -rf ~/rocketchat
 
 # 4. 清除插件和凭据
 rm -rf ~/.openclaw/extensions/openclaw-rocketchat

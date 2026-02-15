@@ -590,10 +590,45 @@ if [ -z "${RC_ADMIN_PASS:-}" ]; then
   if [ -f "${INSTALL_DIR}/.rc-info" ]; then
     RC_ADMIN_PASS=$(grep "^ADMIN_PASS=" "${INSTALL_DIR}/.rc-info" 2>/dev/null | cut -d'=' -f2-)
   fi
-  # 如果仍然为空（旧版安装），生成新密码
+  # 如果仍然为空（旧版安装），标记为默认密码
   if [ -z "${RC_ADMIN_PASS:-}" ]; then
     RC_ADMIN_PASS="admin"
-    warn "未找到管理员密码记录，使用默认值。建议运行 openclaw rocketchat setup 后自动加固。"
+  fi
+fi
+
+# 如果密码是弱口令 admin，尝试通过 API 自动加固
+if [ "${RC_ADMIN_PASS}" = "admin" ]; then
+  step "检测到弱口令 admin/admin，正在自动加固..."
+  # 用 admin/admin 登录获取 token
+  LOGIN_RESP=$(curl -sk -X POST "https://127.0.0.1/api/v1/login" \
+    -H "Content-Type: application/json" \
+    -d '{"user":"admin","password":"admin"}' 2>/dev/null || echo "")
+
+  AUTH_TOKEN=$(echo "$LOGIN_RESP" | grep -o '"authToken":"[^"]*"' | head -1 | cut -d'"' -f4)
+  USER_ID=$(echo "$LOGIN_RESP" | grep -o '"userId":"[^"]*"' | head -1 | cut -d'"' -f4)
+
+  if [ -n "$AUTH_TOKEN" ] && [ -n "$USER_ID" ]; then
+    # 生成强密码
+    NEW_PASS=$(head -c 18 /dev/urandom | base64 | tr -d '/+=' | head -c 20)
+    if [ ${#NEW_PASS} -lt 12 ]; then
+      NEW_PASS="RcAdmin$(date +%s | sha256sum | head -c 16)"
+    fi
+
+    # 通过 API 修改密码
+    CHANGE_RESP=$(curl -sk -X POST "https://127.0.0.1/api/v1/users.update" \
+      -H "Content-Type: application/json" \
+      -H "X-Auth-Token: ${AUTH_TOKEN}" \
+      -H "X-User-Id: ${USER_ID}" \
+      -d "{\"userId\":\"${USER_ID}\",\"data\":{\"password\":\"${NEW_PASS}\"}}" 2>/dev/null || echo "")
+
+    if echo "$CHANGE_RESP" | grep -q '"success":true'; then
+      RC_ADMIN_PASS="${NEW_PASS}"
+      success "管理员密码已自动升级为强随机密码"
+    else
+      warn "自动修改密码失败，保留当前密码。建议运行 openclaw rocketchat setup 后自动加固。"
+    fi
+  else
+    warn "无法使用 admin/admin 登录（可能密码已被修改过）。建议运行 openclaw rocketchat setup。"
   fi
 fi
 
@@ -629,11 +664,18 @@ info "安装目录:   ${INSTALL_DIR}"
 info "HTTPS:      Let's Encrypt 正式证书（acme.sh 自动续期）"
 info "域名:       ${RC_DOMAIN}（由 sslip.io 免费提供，无需购买）"
 echo ""
-info "🔑 管理员账号（已自动生成强密码）："
-echo -e "     用户名: ${GREEN}admin${NC}"
-echo -e "     密码:   ${GREEN}${RC_ADMIN_PASS}${NC}"
-info "   （已保存到 ${RC_INFO_FILE}，setup 时会自动读取。"
-info "    普通用户不需要知道这个账号，仅供服务器管理使用。）"
+if [ "${RC_ADMIN_PASS}" = "admin" ]; then
+  warn "🔑 管理员账号（弱口令，请尽快运行 openclaw rocketchat setup 自动加固）："
+  echo -e "     用户名: ${GREEN}admin${NC}"
+  echo -e "     密码:   ${RED}admin${NC}  ← ${RED}安全风险！${NC}"
+  info "   运行 openclaw rocketchat setup 会自动将密码升级为强随机密码。"
+else
+  info "🔑 管理员账号（已自动生成强密码）："
+  echo -e "     用户名: ${GREEN}admin${NC}"
+  echo -e "     密码:   ${GREEN}${RC_ADMIN_PASS}${NC}"
+  info "   （已保存到 ${RC_INFO_FILE}，setup 时会自动读取。"
+  info "    普通用户不需要知道这个账号，仅供服务器管理使用。）"
+fi
 echo ""
 info "📌 接下来的步骤："
 echo ""
