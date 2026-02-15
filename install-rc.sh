@@ -289,7 +289,7 @@ if [[ ! -f "$ACME_SH" ]]; then
 
   # 方式 1: 官方安装脚本
   info "尝试方式 1: 官方安装脚本..."
-  curl -fsSL https://get.acme.sh | sh -s email=openclaw@openclaw.local 2>/dev/null
+  curl -fsSL https://get.acme.sh | sh 2>/dev/null
   source "$HOME/.acme.sh/acme.sh.env" 2>/dev/null || true
 
   # 方式 2: GitHub 直接克隆
@@ -298,7 +298,7 @@ if [[ ! -f "$ACME_SH" ]]; then
     rm -rf /tmp/acme.sh
     if git clone --depth 1 https://github.com/acmesh-official/acme.sh.git /tmp/acme.sh 2>/dev/null; then
       cd /tmp/acme.sh
-      ./acme.sh --install -m openclaw@openclaw.local 2>/dev/null
+      ./acme.sh --install 2>/dev/null
       cd - >/dev/null
       rm -rf /tmp/acme.sh
       source "$HOME/.acme.sh/acme.sh.env" 2>/dev/null || true
@@ -311,7 +311,7 @@ if [[ ! -f "$ACME_SH" ]]; then
     rm -rf /tmp/acme.sh
     if git clone --depth 1 https://gitee.com/neilpang/acme.sh.git /tmp/acme.sh 2>/dev/null; then
       cd /tmp/acme.sh
-      ./acme.sh --install -m openclaw@openclaw.local 2>/dev/null
+      ./acme.sh --install 2>/dev/null
       cd - >/dev/null
       rm -rf /tmp/acme.sh
       source "$HOME/.acme.sh/acme.sh.env" 2>/dev/null || true
@@ -331,6 +331,9 @@ if [[ ! -f "$ACME_SH" ]]; then
   exit 1
 fi
 success "acme.sh 已就绪"
+
+# 清除可能残留的无效邮箱配置，用无邮箱模式注册 Let's Encrypt 账号
+"$ACME_SH" --register-account --server letsencrypt --accountemail "" 2>/dev/null || true
 
 # 5c. 申请 Let's Encrypt 证书
 #     策略 1: HTTP-01（standalone，80 端口）— 最通用
