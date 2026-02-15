@@ -240,7 +240,7 @@ async function createAdminAccount(
       savedUsername = "admin";
       savedPassword = "admin";
     } catch {
-      // 尝试 2：注册新管理员
+      // 尝试 2：通过注册接口创建第一个用户（在全新 RC 上自动成为 admin）
       const response = await fetch(`${serverUrl}/api/v1/users.register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -253,7 +253,13 @@ async function createAdminAccount(
       });
 
       if (!response.ok) {
-        throw new Error("无法创建管理员账号");
+        const errorData = await response.json().catch(() => ({} as Record<string, unknown>));
+        const errorMsg = (errorData as Record<string, string>).error || "注册失败";
+        throw new Error(
+          errorMsg.includes("registration-disabled") || errorMsg.includes("Registration")
+            ? "注册被禁用。请先在 docker-compose.yml 中移除 OVERWRITE_SETTING_Accounts_RegistrationForm 行，重启 RC 后重试"
+            : `无法创建管理员账号: ${errorMsg}`,
+        );
       }
 
       adminResult = await rc.login(adminUsername, adminPassword);
@@ -265,6 +271,16 @@ async function createAdminAccount(
       username: savedUsername,
       password: savedPassword,
     });
+
+    // 安全措施：注册完管理员后，自动禁用公开注册
+    rc.setAuth(adminResult.userId, adminResult.authToken);
+    try {
+      await rc.setSetting("Accounts_RegistrationForm", "Disabled");
+      info("已自动关闭公开注册（安全）");
+    } catch {
+      warn("无法自动关闭公开注册，建议在 RC 管理后台手动禁用");
+    }
+
     success("管理员已创建");
     return true;
   } catch (err) {

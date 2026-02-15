@@ -244,7 +244,6 @@ services:
       PORT: 3000
       DEPLOY_METHOD: docker
       OVERWRITE_SETTING_Show_Setup_Wizard: "completed"
-      OVERWRITE_SETTING_Accounts_RegistrationForm: "Disabled"
     depends_on:
       - mongodb
 

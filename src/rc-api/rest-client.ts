@@ -364,6 +364,11 @@ export class RocketChatRestClient {
   // 服务器
   // ----------------------------------------------------------
 
+  /** 修改服务器设置（需要 admin 权限） */
+  async setSetting(settingId: string, value: unknown): Promise<void> {
+    await this.request("POST", `/settings/${encodeURIComponent(settingId)}`, { value });
+  }
+
   /** 获取服务器信息（健康检查，兼容 RC 6.x ~ 8.x） */
   async serverInfo(): Promise<ServerInfo> {
     // RC 8.x 移除了 /api/v1/info，改用 /api/v1/login 做连通性测试
