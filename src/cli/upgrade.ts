@@ -190,6 +190,7 @@ export async function upgradeCommand(configPath: string): Promise<void> {
   // 5. 安装新版
   // ----------------------------------------------------------
   step("安装新版插件...");
+  let installOk = false;
   try {
     // 显式指定版本号，避免 npm 缓存导致装回旧版本
     const installPkg = latestVersion && latestVersion !== "(查询中...)"
@@ -203,15 +204,22 @@ export async function upgradeCommand(configPath: string): Promise<void> {
     // 检查是否真的安装成功
     if (existsSync(extensionDir)) {
       success("新版插件安装成功");
+      installOk = true;
     } else {
       error("安装命令执行完毕但插件目录不存在");
       error(output);
-      warn("请手动排查后重试");
-      // 仍然尝试恢复配置
     }
   } catch (err) {
     error(`安装失败: ${(err as Error).message}`);
-    warn("尝试恢复配置...");
+  }
+
+  if (!installOk) {
+    console.log("");
+    error("升级失败：新版插件未能安装。");
+    info("请手动安装：");
+    info("  openclaw plugins install openclaw-rocketchat");
+    info("然后重新运行 upgrade 恢复配置。");
+    return;
   }
 
   // ----------------------------------------------------------
@@ -247,11 +255,6 @@ export async function upgradeCommand(configPath: string): Promise<void> {
       success(`已恢复 ${savedBindings.length} 条 binding`);
     }
 
-    // 添加 "rocketchat" 别名条目
-    // 框架 doctor 会根据 channels.rocketchat 查找 plugins.entries.rocketchat，
-    // 如果不存在就反复提示。添加别名 + 匹配的 installs 记录，让 doctor 和验证都通过。
-    ensurePluginAlias(config);
-
     writeJson(configPath, config);
     success("配置恢复完成");
   } catch (err) {
@@ -282,31 +285,4 @@ export async function upgradeCommand(configPath: string): Promise<void> {
   info("  # 或前台运行查看日志：");
   info("  openclaw gateway run --verbose");
   console.log("");
-}
-
-/**
- * 确保 plugins.entries 和 plugins.installs 使用 "rocketchat" 作为键名。
- *
- * 原因：框架 doctor 根据 channels.rocketchat 查找 plugins.entries.rocketchat，
- * 但 `openclaw plugins install` 用 npm 包名 "openclaw-rocketchat" 作为键。
- * 插件 manifest id 已改为 "rocketchat"，这里确保 entries/installs 键名一致，
- * 让 doctor 和验证都通过。
- */
-function ensurePluginAlias(config: Record<string, any>): void {
-  config.plugins = config.plugins || {};
-  config.plugins.entries = config.plugins.entries || {};
-  config.plugins.installs = config.plugins.installs || {};
-
-  const entries = config.plugins.entries;
-  const installs = config.plugins.installs;
-
-  // 确保 entries.rocketchat 存在
-  if (!entries["rocketchat"]) {
-    entries["rocketchat"] = entries["openclaw-rocketchat"] || { enabled: true };
-  }
-
-  // 确保 installs.rocketchat 存在
-  if (!installs["rocketchat"] && installs["openclaw-rocketchat"]) {
-    installs["rocketchat"] = { ...installs["openclaw-rocketchat"] };
-  }
 }

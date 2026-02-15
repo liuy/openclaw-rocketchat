@@ -5,7 +5,7 @@
 // Docker 部署已独立到 install-rc.sh，本命令只负责"连接和配置"
 // ============================================================
 
-import { readFileSync, writeFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { RocketChatRestClient } from "../rc-api/rest-client.js";
@@ -275,10 +275,6 @@ export async function setupCommand(configPath: string): Promise<void> {
     await configWriter.readConfig();
     configWriter.setRocketchatChannel(cleanUrl, port);
     await configWriter.save();
-
-    // 添加 "rocketchat" 插件别名条目（防止框架 doctor 幽灵警告）
-    ensurePluginAlias(configPath);
-
     success("配置已写入");
   } catch (err) {
     error(`配置写入失败: ${(err as Error).message}`);
@@ -636,43 +632,4 @@ function printFinishBanner(
   info("💡 下一步: 运行以下命令添加第一个机器人");
   info("   openclaw rocketchat add-bot");
   console.log("");
-}
-
-/**
- * 确保 plugins.entries 和 plugins.installs 使用 "rocketchat" 作为键名。
- *
- * 原因：框架 doctor 根据 channels.rocketchat 查找 plugins.entries.rocketchat，
- * 但 `openclaw plugins install` 用 npm 包名 "openclaw-rocketchat" 作为键。
- * 插件 manifest id 已改为 "rocketchat"，这里确保 entries/installs 键名一致。
- */
-function ensurePluginAlias(configPath: string): void {
-  try {
-    const content = readFileSync(configPath, "utf-8");
-    const config = JSON.parse(content);
-
-    let changed = false;
-
-    config.plugins = config.plugins || {};
-    config.plugins.entries = config.plugins.entries || {};
-    config.plugins.installs = config.plugins.installs || {};
-
-    const entries = config.plugins.entries;
-    const installs = config.plugins.installs;
-
-    if (!entries["rocketchat"]) {
-      entries["rocketchat"] = entries["openclaw-rocketchat"] || { enabled: true };
-      changed = true;
-    }
-
-    if (!installs["rocketchat"] && installs["openclaw-rocketchat"]) {
-      installs["rocketchat"] = { ...installs["openclaw-rocketchat"] };
-      changed = true;
-    }
-
-    if (changed) {
-      writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
-    }
-  } catch {
-    // 不阻断主流程
-  }
 }
