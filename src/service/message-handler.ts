@@ -10,6 +10,67 @@ import type { BotManager } from "./bot-manager.js";
 /** 长文本分块大小（Rocket.Chat 单条消息建议不超过 4000 字符） */
 const MAX_MESSAGE_LENGTH = 4000;
 
+// ============================================================
+// ! 命令系统：替代 Rocket.Chat 原生斜杠命令（避免冲突）
+// Rocket.Chat 内置了 /help、/join 等斜杠命令，会在客户端被拦截。
+// 我们用 ! 前缀替代，在消息到达 Agent 之前拦截或翻译。
+// ============================================================
+
+/** 命令前缀 */
+const CMD_PREFIX = "!";
+
+/**
+ * 自然语言 → 命令映射
+ * 用户输入这些关键词时，等同于输入对应的 ! 命令
+ * key 必须是小写（匹配时会对用户输入做 trim + toLowerCase）
+ */
+const NATURAL_LANGUAGE_COMMANDS: Record<string, string> = {
+  "帮助": "help",
+  "命令": "help",
+  "命令列表": "help",
+  "help": "help",
+  "重置": "reset",
+  "重置对话": "reset",
+  "新对话": "reset",
+  "reset": "reset",
+  "状态": "status",
+  "status": "status",
+  "压缩": "compact",
+  "压缩对话": "compact",
+  "compact": "compact",
+};
+
+/**
+ * 帮助菜单文本
+ * 当用户输入 !help 或 "帮助" 时，直接回复此内容（不经过 Agent）
+ */
+function buildHelpText(): string {
+  return [
+    "🦞 **命令帮助**",
+    "",
+    "由于 Rocket.Chat 自带 `/` 斜杠命令，AI 命令统一使用 `!` 前缀：",
+    "",
+    "**常用命令：**",
+    "| 命令 | 自然语言 | 说明 |",
+    "| --- | --- | --- |",
+    "| `!help` | 帮助 | 显示此帮助菜单 |",
+    "| `!reset` | 重置对话 | 清空当前对话记忆，开始新对话 |",
+    "| `!status` | 状态 | 显示当前 Agent 和会话状态 |",
+    "| `!compact` | 压缩对话 | 压缩对话历史，释放上下文空间 |",
+    "",
+    "**使用方式：**",
+    "- 输入命令：`!reset`",
+    "- 或说自然语言：`重置对话`",
+    "- 效果完全相同",
+    "",
+    "**其他 `!` 命令：**",
+    "所有 `!xxx` 会自动转换为 OpenClaw 的 `/xxx` 命令。",
+    "如果 OpenClaw 支持某个 `/` 命令，你用 `!` 前缀就能调用。",
+    "",
+    "💡 当然，你也可以直接和我自然对话，不需要任何命令。",
+  ].join("\n");
+}
+
 /** processingMessages 集合的最大容量（防止内存泄漏） */
 const MAX_PROCESSING_SET_SIZE = 1000;
 
@@ -126,6 +187,29 @@ export class MessageHandler {
     if (!text.trim()) {
       return;
     }
+
+    // ---- ! 命令拦截 ----
+    // 在分发到 Agent 之前，检查是否为 ! 命令或自然语言命令
+    const commandResult = this.interceptCommand(text.trim());
+
+    if (commandResult.action === "reply") {
+      // 命令由插件本地处理（如 !help），直接回复
+      this.logger.info(`命令拦截 (本地处理): ${text.trim()}`);
+      try {
+        await this.handleOutbound(commandResult.replyText!, botUsername, roomId);
+      } catch (err) {
+        this.logger.error(`命令回复失败: ${(err as Error).message}`);
+      }
+      cleanup();
+      return;
+    }
+
+    if (commandResult.action === "transform") {
+      // 命令需要转换后传给 Agent（如 !reset → /reset）
+      this.logger.info(`命令拦截 (转换): ${text.trim()} → ${commandResult.transformedText}`);
+      text = commandResult.transformedText!;
+    }
+    // action === "passthrough"：非命令消息，原样传递
 
     // 构造发送者信息（显示名 + 用户名）
     const senderDisplayName = msg.u.name || msg.u.username;
@@ -437,6 +521,73 @@ export class MessageHandler {
     if (!hasReplied) {
       this.logger.info(`Agent 处理完成，无回复内容（可能是命令或空响应）`);
     }
+  }
+
+  // ----------------------------------------------------------
+  // ! 命令拦截
+  // ----------------------------------------------------------
+
+  /**
+   * 拦截 ! 命令和自然语言命令
+   *
+   * 返回三种动作之一：
+   * - reply：由插件本地处理，直接回复（如 !help）
+   * - transform：转换文本后继续传给 Agent（如 !reset → /reset）
+   * - passthrough：非命令消息，原样传递
+   */
+  private interceptCommand(text: string): {
+    action: "reply" | "transform" | "passthrough";
+    replyText?: string;
+    transformedText?: string;
+  } {
+    const trimmed = text.trim();
+    const lower = trimmed.toLowerCase();
+
+    // 1. 检查自然语言命令（精确匹配，避免误伤正常对话）
+    const nlCmd = NATURAL_LANGUAGE_COMMANDS[lower];
+    if (nlCmd) {
+      // 自然语言命中 → 当作 !command 处理
+      return this.handleBangCommand(nlCmd, "");
+    }
+
+    // 2. 检查 ! 前缀命令
+    if (trimmed.startsWith(CMD_PREFIX)) {
+      const withoutPrefix = trimmed.slice(CMD_PREFIX.length).trim();
+      if (!withoutPrefix) {
+        // 只输入了 "!" → 显示帮助
+        return { action: "reply", replyText: buildHelpText() };
+      }
+      const spaceIdx = withoutPrefix.indexOf(" ");
+      const cmdName = spaceIdx >= 0 ? withoutPrefix.slice(0, spaceIdx) : withoutPrefix;
+      const cmdArgs = spaceIdx >= 0 ? withoutPrefix.slice(spaceIdx + 1).trim() : "";
+      return this.handleBangCommand(cmdName.toLowerCase(), cmdArgs);
+    }
+
+    // 3. 非命令消息
+    return { action: "passthrough" };
+  }
+
+  /**
+   * 处理具体的 ! 命令
+   * @param cmd 命令名（不含 ! 前缀，已小写）
+   * @param args 命令参数
+   */
+  private handleBangCommand(
+    cmd: string,
+    args: string,
+  ): {
+    action: "reply" | "transform" | "passthrough";
+    replyText?: string;
+    transformedText?: string;
+  } {
+    // 本地处理的命令
+    if (cmd === "help") {
+      return { action: "reply", replyText: buildHelpText() };
+    }
+
+    // 转换为 /command 传给 OpenClaw Gateway 处理
+    const slashCmd = args ? `/${cmd} ${args}` : `/${cmd}`;
+    return { action: "transform", transformedText: slashCmd };
   }
 
   // ----------------------------------------------------------
