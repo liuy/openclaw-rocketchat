@@ -1,6 +1,6 @@
 {
   "name": "openclaw-rocketchat",
-  "version": "0.7.13",
+  "version": "0.7.14",
   "description": "Rocket.Chat channel plugin for OpenClaw — connect via mobile app, ideal for China mainland users",
   "type": "module",
   "main": "./dist/index.js",
