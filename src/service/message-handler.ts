@@ -6,7 +6,6 @@
 
 import type { RcMessage, RocketchatChannelConfig } from "../rc-api/types.js";
 import type { BotManager } from "./bot-manager.js";
-import type { OpenClawInternals } from "../gateway/openclaw-internals.js";
 
 /** 长文本分块大小（Rocket.Chat 单条消息建议不超过 4000 字符） */
 const MAX_MESSAGE_LENGTH = 4000;
@@ -25,15 +24,21 @@ interface MessageHandlerOptions {
   botManager: BotManager;
   config: Partial<RocketchatChannelConfig>;
   logger?: { info: (msg: string) => void; error: (msg: string) => void };
-  /** OpenClaw 内部模块引用（用于入站消息分发） */
-  internals?: OpenClawInternals | null;
+  /**
+   * OpenClaw Plugin Runtime（由 api.runtime 提供）
+   * 包含 channel.reply.dispatchReplyFromConfig 等核心 API
+   */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  runtime?: any;
 }
 
 export class MessageHandler {
   private botManager: BotManager;
   private config: Partial<RocketchatChannelConfig>;
   private logger: { info: (msg: string) => void; error: (msg: string) => void };
-  private internals: OpenClawInternals | null;
+  /** OpenClaw Plugin Runtime */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private runtime: any;
   /** 正在处理中的消息 ID 集合（防止并发重复处理） */
   private processingMessages = new Set<string>();
   /** 群组房间映射：roomId → GroupRoomInfo（用于区分 DM 和群组） */
@@ -42,7 +47,7 @@ export class MessageHandler {
   constructor(options: MessageHandlerOptions) {
     this.botManager = options.botManager;
     this.config = options.config;
-    this.internals = options.internals || null;
+    this.runtime = options.runtime || null;
     this.logger = options.logger || {
       info: (msg: string) => console.log(`[RC MessageHandler] ${msg}`),
       error: (msg: string) => console.error(`[RC MessageHandler] ${msg}`),
@@ -172,8 +177,8 @@ export class MessageHandler {
   /**
    * 将消息分发到 OpenClaw Agent
    *
-   * 使用 dispatchInboundMessage（进程内直接调用）
-   * 需要 OpenClaw 内部模块可用（在 Gateway 进程内运行时自动加载）
+   * 使用 Plugin Runtime API（api.runtime.channel.reply.*）
+   * 参考官方 Feishu 插件的 dispatchReplyFromConfig 调用方式
    */
   private async dispatchToAgent(
     text: string,
@@ -183,29 +188,34 @@ export class MessageHandler {
     agentId: string,
     messageId: string,
   ): Promise<void> {
-    if (this.internals) {
-      await this.dispatchViaInternals(
-        text,
-        botUsername,
-        senderId,
-        roomId,
-        agentId,
-        messageId,
-      );
-    } else {
+    if (!this.runtime?.channel?.reply) {
       this.logger.error(
-        "OpenClaw 内部模块不可用，入站消息无法分发到 Agent",
+        "Plugin Runtime 不可用，入站消息无法分发到 Agent",
       );
+      return;
     }
+
+    await this.dispatchViaRuntime(
+      text,
+      botUsername,
+      senderId,
+      roomId,
+      agentId,
+      messageId,
+    );
   }
 
   /**
-   * 通过 OpenClaw 内部 API 分发入站消息（首选方式）
+   * 通过 Plugin Runtime API 分发入站消息
    *
-   * 构造 MsgContext → dispatchInboundMessage → Agent 处理
-   * Agent 回复通过 dispatcher 的 deliver 回调直接发送到 RC
+   * 流程（参考官方 Feishu 插件）：
+   * 1. 构造消息上下文
+   * 2. finalizeInboundContext → 生成规范化的 MsgContext
+   * 3. createReplyDispatcherWithTyping → 创建回复分发器
+   * 4. dispatchReplyFromConfig → 分发到 Agent
+   * 5. Agent 回复通过 deliver 回调发送到 RC
    */
-  private async dispatchViaInternals(
+  private async dispatchViaRuntime(
     text: string,
     botUsername: string,
     senderId: string,
@@ -213,14 +223,13 @@ export class MessageHandler {
     agentId: string,
     messageId: string,
   ): Promise<void> {
-    const internals = this.internals!;
+    const replyApi = this.runtime.channel.reply;
 
     // 加载最新配置
     let cfg: Record<string, unknown>;
     try {
-      cfg = internals.loadConfig();
+      cfg = this.runtime.config?.loadConfig?.() ?? {};
     } catch {
-      // 如果 loadConfig 失败，尝试用空配置
       cfg = {};
     }
 
@@ -229,13 +238,13 @@ export class MessageHandler {
     const isGroup = !!groupInfo;
     const chatType = isGroup ? "group" : "direct";
 
-    // 构造 session key（格式参考 Telegram/Discord 等核心频道）
+    // 构造 session key（格式参考 Telegram/Feishu 等核心频道）
     const sessionKey = isGroup
       ? `agent:${agentId}:rocketchat:group:${botUsername}:${roomId}`
       : `agent:${agentId}:rocketchat:dm:${botUsername}:${roomId}`;
 
-    // 构造 MsgContext（OpenClaw 入站消息上下文）
-    const ctx: Record<string, unknown> = {
+    // 构造消息上下文（参考 Feishu 插件的 finalizeInboundContext 参数）
+    const rawCtx: Record<string, unknown> = {
       Body: text,
       BodyForAgent: text,
       RawBody: text,
@@ -259,26 +268,38 @@ export class MessageHandler {
       SenderId: senderId,
       SenderName: senderId,
       SenderUsername: senderId,
+      Timestamp: Date.now(),
     };
 
     // 群组消息额外字段
     if (isGroup && groupInfo) {
-      ctx.GroupSubject = groupInfo.groupName;
+      rawCtx.GroupSubject = groupInfo.groupName;
     }
 
-    // 创建 reply dispatcher —— Agent 回复通过 deliver 回调直接发到 RC
-    const replyParts: string[] = [];
-    const dispatcher = internals.createReplyDispatcher({
-      deliver: async (
-        payload: { text?: string; mediaUrl?: string },
-        info: { kind: string },
-      ) => {
-        const replyText = payload.text?.trim() ?? "";
-        if (!replyText) return;
-        replyParts.push(replyText);
+    // 1. 规范化上下文（如果 runtime 提供了 finalizeInboundContext）
+    let ctxPayload: Record<string, unknown>;
+    if (typeof replyApi.finalizeInboundContext === "function") {
+      ctxPayload = replyApi.finalizeInboundContext(rawCtx);
+    } else {
+      ctxPayload = rawCtx;
+    }
 
-        // 实时发送每个回复块到 RC（而不是等全部完成再发）
-        if (info.kind === "final" || info.kind === "block") {
+    // 2. 创建回复分发器
+    let dispatcher: unknown;
+    let replyOptions: Record<string, unknown> = {};
+    let markDispatchIdle: (() => void) | undefined;
+    let hasReplied = false;
+
+    if (typeof replyApi.createReplyDispatcherWithTyping === "function") {
+      // 使用 runtime 提供的标准分发器（带 typing 指示器等增强功能）
+      const result = replyApi.createReplyDispatcherWithTyping({
+        deliver: async (
+          payload: { text?: string; mediaUrl?: string },
+          info: { kind: string },
+        ) => {
+          const replyText = payload.text?.trim() ?? "";
+          if (!replyText) return;
+          hasReplied = true;
           try {
             await this.handleOutbound(replyText, botUsername, roomId);
           } catch (err) {
@@ -286,25 +307,51 @@ export class MessageHandler {
               `回复发送失败: ${(err as Error).message}`,
             );
           }
-        }
-      },
-      onError: (err: unknown) => {
-        this.logger.error(
-          `Agent 处理错误: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      },
-    });
+        },
+        onError: (err: unknown) => {
+          this.logger.error(
+            `Agent 处理错误: ${err instanceof Error ? err.message : String(err)}`,
+          );
+        },
+      });
+      dispatcher = result.dispatcher;
+      replyOptions = result.replyOptions || {};
+      markDispatchIdle = result.markDispatchIdle;
+    } else {
+      // 兜底：手动构造最小 dispatcher
+      this.logger.info("createReplyDispatcherWithTyping 不可用，使用兜底 dispatcher");
+      dispatcher = {
+        sendFinalReply: async (payload: { text?: string }) => {
+          const replyText = payload.text?.trim() ?? "";
+          if (!replyText) return;
+          hasReplied = true;
+          await this.handleOutbound(replyText, botUsername, roomId);
+        },
+        sendBlockReply: async (payload: { text?: string }) => {
+          const replyText = payload.text?.trim() ?? "";
+          if (!replyText) return;
+          hasReplied = true;
+          await this.handleOutbound(replyText, botUsername, roomId);
+        },
+        sendToolResult: async () => {},
+        waitForIdle: async () => {},
+        markComplete: () => {},
+      };
+    }
 
-    // 分发入站消息 → Agent 处理 → 回复通过 deliver 回调发送
-    await internals.dispatchInboundMessage({
-      ctx,
-      cfg,
-      dispatcher,
-    });
+    // 3. 分发入站消息 → Agent 处理 → 回复通过 deliver 回调发送
+    try {
+      await replyApi.dispatchReplyFromConfig({
+        ctx: ctxPayload,
+        cfg,
+        dispatcher,
+        replyOptions,
+      });
+    } finally {
+      markDispatchIdle?.();
+    }
 
-    // 如果 Agent 没有通过 dispatcher 回复（例如命令处理后无输出），
-    // replyParts 为空也是正常的
-    if (replyParts.length === 0) {
+    if (!hasReplied) {
       this.logger.info(`Agent 处理完成，无回复内容（可能是命令或空响应）`);
     }
   }

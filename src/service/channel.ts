@@ -10,14 +10,15 @@ import {
   loadAdminCredentials,
   loadBotCredentials,
 } from "../config/credentials.js";
-import { loadOpenClawInternals } from "../gateway/openclaw-internals.js";
-import type { OpenClawInternals } from "../gateway/openclaw-internals.js";
 import type { RocketchatChannelConfig, OpenClawBinding } from "../rc-api/types.js";
 
 interface ChannelServiceOptions {
   config: Partial<RocketchatChannelConfig>;
   bindings?: OpenClawBinding[];
   logger?: { info: (msg: string) => void; error: (msg: string) => void };
+  /** OpenClaw Plugin Runtime（由 api.runtime 提供，包含消息分发等核心 API） */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  runtime?: any;
 }
 
 export class ChannelService {
@@ -26,13 +27,16 @@ export class ChannelService {
   private botManager: BotManager | null = null;
   private messageHandler: MessageHandler | null = null;
   private adminClient: RocketChatRestClient | null = null;
-  private internals: OpenClawInternals | null = null;
+  /** OpenClaw Plugin Runtime */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private runtime: any;
   private logger: { info: (msg: string) => void; error: (msg: string) => void };
   private running = false;
 
   constructor(options: ChannelServiceOptions) {
     this.config = options.config;
     this.bindings = options.bindings || [];
+    this.runtime = options.runtime || null;
     this.logger = options.logger || {
       info: (msg: string) => console.log(`[RC ChannelService] ${msg}`),
       error: (msg: string) => console.error(`[RC ChannelService] ${msg}`),
@@ -79,19 +83,12 @@ export class ChannelService {
       return;
     }
 
-    // 2. 加载 OpenClaw 内部模块（用于入站消息分发）
-    try {
-      this.internals = await loadOpenClawInternals();
-      if (this.internals) {
-        this.logger.info("OpenClaw 内部模块已加载（进程内直连模式）");
-      } else {
-        this.logger.error(
-          "无法加载 OpenClaw 内部模块，入站消息将无法路由到 Agent",
-        );
-      }
-    } catch (err) {
+    // 2. 验证 Plugin Runtime
+    if (this.runtime?.channel?.reply) {
+      this.logger.info("Plugin Runtime 已就绪（通过 api.runtime 获取）");
+    } else {
       this.logger.error(
-        `加载 OpenClaw 内部模块失败: ${(err as Error).message}`,
+        "Plugin Runtime 不可用，入站消息将无法路由到 Agent",
       );
     }
 
@@ -103,7 +100,7 @@ export class ChannelService {
       botManager: this.botManager,
       config: this.config,
       logger: this.logger,
-      internals: this.internals,
+      runtime: this.runtime,
     });
 
     // 5. 设置消息回调

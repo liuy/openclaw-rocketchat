@@ -23,6 +23,14 @@ let configFilePath = "";
 let channelService: ChannelService | null = null;
 
 /**
+ * OpenClaw Plugin Runtime（由 api.runtime 提供）
+ * 包含消息分发、配置加载等核心 API
+ * 参考官方 Feishu 插件的做法：在 register() 时保存，后续使用
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let pluginRuntime: any = null;
+
+/**
  * 获取 openclaw.json 路径
  * 优先级：缓存 → ~/.openclaw/openclaw.json → cwd/openclaw.json
  */
@@ -48,6 +56,9 @@ export default function register(api: any): void {
     info: (msg: string) => console.log(`[RC] ${msg}`),
     error: (msg: string) => console.error(`[RC] ${msg}`),
   };
+
+  // 保存 Plugin Runtime（核心 API，包含消息分发等）
+  pluginRuntime = api.runtime || null;
 
   logger.info("Rocket.Chat 插件已加载");
 
@@ -255,6 +266,7 @@ export default function register(api: any): void {
         config: rcConfig,
         bindings,
         logger,
+        runtime: pluginRuntime,
       });
 
       try {
