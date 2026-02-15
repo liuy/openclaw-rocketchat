@@ -3,6 +3,9 @@
 // 添加手机登录用户 + 选择加入群组 + 设置权限
 // ============================================================
 
+import { readFileSync, existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import { RocketChatRestClient } from "../rc-api/rest-client.js";
 import { ConfigWriter } from "../config/writer.js";
 import {
@@ -242,7 +245,7 @@ export async function addUserCommand(configPath: string): Promise<void> {
   // ----------------------------------------------------------
   // 8. 完成提示
   // ----------------------------------------------------------
-  const hostIp = rcConfig.serverUrl || "";
+  const phoneUrl = getPhoneUrl(rcConfig.serverUrl || "");
 
   console.log("");
   success(`用户 ${username} 已创建`);
@@ -250,9 +253,9 @@ export async function addUserCommand(configPath: string): Promise<void> {
   if (selectedGroups.length > 0) {
     info(`  已加入: ${selectedGroups.join(", ")}`);
   }
-  info(`  登录: ${hostIp} / 用户名: ${username}`);
+  info(`  登录: ${phoneUrl} / 用户名: ${username}`);
   console.log("");
-  info(`📱 告诉 ${username} 下载 Rocket.Chat App，服务器填 ${hostIp}`);
+  info(`📱 告诉 ${username} 下载 Rocket.Chat App，服务器填 ${phoneUrl}`);
   info(`   用上面的用户名密码登录后，即可：`);
   if (permission === "readonly") {
     if (selectedGroups.length > 0) {
@@ -269,4 +272,38 @@ export async function addUserCommand(configPath: string): Promise<void> {
     info(`   - 直接私聊任意机器人，进行一对一 AI 对话`);
   }
   console.log("");
+}
+
+/**
+ * 获取手机可用的服务器地址
+ * 如果配置中是 127.0.0.1/localhost，则从 .rc-info 读取外部域名
+ */
+function getPhoneUrl(serverUrl: string): string {
+  if (!/localhost|127\.0\.0\.1/.test(serverUrl)) {
+    return serverUrl;
+  }
+
+  // 尝试从 .rc-info 读取外部域名
+  const candidates = [
+    join(homedir(), "rocketchat", ".rc-info"),
+    "/root/rocketchat/.rc-info",
+  ];
+  for (const path of candidates) {
+    if (!existsSync(path)) continue;
+    try {
+      const content = readFileSync(path, "utf-8");
+      for (const line of content.split("\n")) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith("DOMAIN=")) {
+          const domain = trimmed.slice("DOMAIN=".length).trim();
+          if (domain) return `https://${domain}`;
+        }
+      }
+    } catch {
+      // 忽略
+    }
+  }
+
+  // 没找到外部域名，返回原始地址并附提示
+  return `${serverUrl}（手机需替换为服务器公网 IP 或域名）`;
 }
