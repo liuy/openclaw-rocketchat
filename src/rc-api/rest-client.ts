@@ -287,6 +287,24 @@ export class RocketChatRestClient {
     }
   }
 
+  /** 查询公开频道信息 */
+  async getChannelInfo(roomName: string): Promise<RcRoom | null> {
+    try {
+      const res = await this.request<{ channel: RcRoom }>(
+        "GET",
+        `/channels.info?roomName=${encodeURIComponent(roomName)}`,
+      );
+      return res.channel;
+    } catch {
+      return null;
+    }
+  }
+
+  /** 删除公开频道 */
+  async deleteChannel(roomId: string): Promise<void> {
+    await this.request("POST", "/channels.delete", { roomId });
+  }
+
   /** 列出所有私有频道 */
   async listGroups(): Promise<RcRoom[]> {
     const res = await this.request<{ groups: RcRoom[] }>(

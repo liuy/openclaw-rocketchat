@@ -139,6 +139,19 @@ export async function setupCommand(configPath: string): Promise<void> {
   }
 
   // ----------------------------------------------------------
+  // 3.5 清理默认的 general 频道（避免用户看到管理员账号）
+  // ----------------------------------------------------------
+  try {
+    const general = await rc.getChannelInfo("general");
+    if (general) {
+      await rc.deleteChannel(general._id);
+      info("已清理默认 general 频道");
+    }
+  } catch {
+    // 可能已经被删除或无权限，忽略
+  }
+
+  // ----------------------------------------------------------
   // 4. 创建手机登录账号
   // ----------------------------------------------------------
   console.log("");
