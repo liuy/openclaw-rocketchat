@@ -166,7 +166,9 @@ export async function addBotCommand(configPath: string): Promise<void> {
   info(`  绑定到 Agent: ${agentId}`);
   info("  DM 私聊已就绪");
   console.log("");
-  info("📱 打开 Rocket.Chat App 即可看到机器人，直接发消息开聊！");
+  info("📱 打开 Rocket.Chat App 和机器人聊天：");
+  info(`   如果会话列表中没有看到 ${displayName}，点左上角「搜索」图标，`);
+  info(`   输入「${botUsername}」即可找到并开始私聊。`);
   console.log("");
   info("💡 更多操作:");
   info("   创建多机器人群组: openclaw rocketchat add-group");
