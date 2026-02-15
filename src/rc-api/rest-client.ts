@@ -220,7 +220,7 @@ export class RocketChatRestClient {
   // ----------------------------------------------------------
 
   /** 创建私有频道 */
-  async createGroup(name: string, members?: string[]): Promise<RcRoom> {
+  async createGroup(name: string, members?: string[], displayName?: string): Promise<RcRoom> {
     const res = await this.request<{ group: RcRoom }>(
       "POST",
       "/groups.create",
@@ -229,6 +229,36 @@ export class RocketChatRestClient {
         members: members || [],
       },
     );
+
+    // 如果有中文显示名，设置频道的 fname（显示名称）
+    if (displayName && displayName !== name) {
+      try {
+        await this.request("POST", "/groups.setCustomFields", {
+          roomId: res.group._id,
+          customFields: { displayName },
+        });
+      } catch {
+        // 忽略
+      }
+      try {
+        // groups.rename 设置 fname
+        await this.request("POST", "/groups.rename", {
+          roomId: res.group._id,
+          name: displayName,
+        });
+      } catch {
+        // RC 可能不允许中文 rename，尝试 topic 作为备选
+        try {
+          await this.request("POST", "/groups.setTopic", {
+            roomId: res.group._id,
+            topic: displayName,
+          });
+        } catch {
+          // 不影响主流程
+        }
+      }
+    }
+
     return res.group;
   }
 

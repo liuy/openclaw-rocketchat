@@ -56,16 +56,32 @@ export async function addGroupCommand(configPath: string): Promise<void> {
   // ----------------------------------------------------------
   // 2. 用户输入
   // ----------------------------------------------------------
-  const groupName = await ask("频道名称");
-  if (!groupName) {
+  const displayName = await ask("频道名称（支持中文）");
+  if (!displayName) {
     error("频道名称不能为空！");
     return;
   }
 
   // 检查频道是否已存在
-  if (rcConfig.groups?.[groupName]) {
-    error(`频道「${groupName}」已存在！`);
+  if (rcConfig.groups?.[displayName]) {
+    error(`频道「${displayName}」已存在！`);
     return;
+  }
+
+  // 生成 RC 合法的 slug（只允许英文字母、数字、连字符、下划线、点）
+  let groupSlug = displayName
+    .replace(/[^a-zA-Z0-9\u4e00-\u9fff_.-]/g, "-")  // 特殊字符替换为连字符
+    .replace(/[\u4e00-\u9fff]+/g, () => `group-${Date.now().toString(36)}`)  // 中文替换为唯一 ID
+    .replace(/-+/g, "-")  // 合并连续连字符
+    .replace(/^-|-$/g, "");  // 去首尾连字符
+
+  // 如果原名就是纯英文，直接用原名
+  if (/^[a-zA-Z0-9_.-]+$/.test(displayName)) {
+    groupSlug = displayName;
+  }
+
+  if (!groupSlug) {
+    groupSlug = `group-${Date.now().toString(36)}`;
   }
 
   // 选择机器人
@@ -123,9 +139,9 @@ export async function addGroupCommand(configPath: string): Promise<void> {
   console.log("");
   const allMembers = [...selectedUsers, ...selectedBots];
 
-  step(`创建私有频道「${groupName}」...`);
+  step(`创建私有频道「${displayName}」...`);
   try {
-    const group = await rc.createGroup(groupName, allMembers);
+    const group = await rc.createGroup(groupSlug, allMembers, displayName);
 
     // 设置第一个用户为 Owner
     if (selectedUsers.length > 0) {
@@ -157,7 +173,7 @@ export async function addGroupCommand(configPath: string): Promise<void> {
       }
     }
 
-    success(`频道「${groupName}」已创建`);
+    success(`频道「${displayName}」已创建`);
   } catch (err) {
     error(`频道创建失败: ${(err as Error).message}`);
     return;
@@ -167,7 +183,7 @@ export async function addGroupCommand(configPath: string): Promise<void> {
   // 4. 写入配置
   // ----------------------------------------------------------
   step("写入配置...");
-  configWriter.addGroup(groupName, selectedBots, requireMention);
+  configWriter.addGroup(displayName, selectedBots, requireMention);
   await configWriter.saveAndReload();
   success("配置已更新");
 
@@ -175,7 +191,7 @@ export async function addGroupCommand(configPath: string): Promise<void> {
   // 5. 完成提示
   // ----------------------------------------------------------
   console.log("");
-  success(`私有频道「${groupName}」已创建`);
+  success(`私有频道「${displayName}」已创建`);
   if (selectedUsers.length > 0) {
     info(`  Owner: ${selectedUsers[0]}`);
   }

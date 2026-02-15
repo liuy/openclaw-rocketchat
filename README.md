@@ -714,6 +714,115 @@ RC 在公网 VPS，OpenClaw 在家庭内网或低配机器。适合没有公网 
 ## 常见问题
 
 <details>
+<summary><b>setup 提示"注册已被禁用"怎么办？</b></summary>
+
+这说明之前已经运行过 setup 并自动关闭了公开注册。解决方案：
+
+**方案 1：重置 Rocket.Chat（推荐，最干净）**
+
+```bash
+cd ~/rocketchat && docker compose down -v
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
+openclaw rocketchat setup
+openclaw rocketchat add-bot
+```
+
+**方案 2：用已有管理员登录**
+
+如果你知道管理员的用户名密码，重新运行 setup 时选择「使用已有管理员账号」。
+
+</details>
+
+<details>
+<summary><b>想重新安装插件/从头配置怎么办？</b></summary>
+
+```bash
+# 1. 清除旧插件
+rm -rf ~/.openclaw/extensions/openclaw-rocketchat
+
+# 2. 清理配置文件中的残留条目
+python3 -c "
+import json
+with open('$HOME/.openclaw/openclaw.json') as f:
+    cfg = json.load(f)
+for key in ['entries', 'installs']:
+    if 'plugins' in cfg and key in cfg['plugins'] and 'openclaw-rocketchat' in cfg['plugins'][key]:
+        del cfg['plugins'][key]['openclaw-rocketchat']
+with open('$HOME/.openclaw/openclaw.json', 'w') as f:
+    json.dump(cfg, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+"
+
+# 3. 重新安装
+npm cache clean --force
+openclaw plugins install openclaw-rocketchat
+openclaw rocketchat setup
+```
+
+</details>
+
+<details>
+<summary><b>想彻底重来（包括重置 Rocket.Chat）怎么办？</b></summary>
+
+```bash
+# 1. 停止并删除 Rocket.Chat 容器和数据
+cd ~/rocketchat && docker compose down -v
+
+# 2. 清除插件和凭据
+rm -rf ~/.openclaw/extensions/openclaw-rocketchat
+rm -rf ~/.openclaw/credentials/rocketchat
+
+# 3. 清理配置文件
+python3 -c "
+import json
+with open('$HOME/.openclaw/openclaw.json') as f:
+    cfg = json.load(f)
+for key in ['entries', 'installs']:
+    if 'plugins' in cfg and key in cfg['plugins'] and 'openclaw-rocketchat' in cfg['plugins'][key]:
+        del cfg['plugins'][key]['openclaw-rocketchat']
+if 'channels' in cfg and 'rocketchat' in cfg['channels']:
+    del cfg['channels']['rocketchat']
+cfg['bindings'] = [b for b in cfg.get('bindings', []) if b.get('match', {}).get('channel') != 'rocketchat']
+with open('$HOME/.openclaw/openclaw.json', 'w') as f:
+    json.dump(cfg, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+"
+
+# 4. 重新开始
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
+openclaw plugins install openclaw-rocketchat
+openclaw rocketchat setup
+openclaw rocketchat add-bot
+```
+
+</details>
+
+<details>
+<summary><b>Rocket.Chat 常用 Docker 管理命令</b></summary>
+
+```bash
+# 查看容器状态
+docker ps
+
+# 查看日志
+cd ~/rocketchat && docker compose logs -f
+
+# 停止服务
+cd ~/rocketchat && docker compose stop
+
+# 启动服务
+cd ~/rocketchat && docker compose start
+
+# 重启服务
+cd ~/rocketchat && docker compose restart
+
+# 完全卸载（删除所有数据）
+cd ~/rocketchat && docker compose down -v
+```
+
+</details>
+
+<details>
 <summary><b>推送通知在国内稳定吗？</b></summary>
 
 App 在前台时走 WebSocket，消息实时送达，零延迟。App 在后台时走 APNs 推送，延迟约 1-5 秒，偶尔可能丢失——和国内大多数 App 的推送表现一致。

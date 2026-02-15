@@ -679,6 +679,115 @@ RC on a cloud VPS, OpenClaw on home network or low-spec machine. Great when you 
 ## FAQ
 
 <details>
+<summary><b>Setup says "registration is disabled" — what do I do?</b></summary>
+
+This means setup was previously run and auto-disabled public registration. Solutions:
+
+**Option 1: Reset Rocket.Chat (recommended, cleanest)**
+
+```bash
+cd ~/rocketchat && docker compose down -v
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
+openclaw rocketchat setup
+openclaw rocketchat add-bot
+```
+
+**Option 2: Use existing admin**
+
+If you know the admin username/password, re-run setup and choose "Use existing admin account".
+
+</details>
+
+<details>
+<summary><b>How to reinstall the plugin / start over?</b></summary>
+
+```bash
+# 1. Remove old plugin
+rm -rf ~/.openclaw/extensions/openclaw-rocketchat
+
+# 2. Clean residual config entries
+python3 -c "
+import json
+with open('$HOME/.openclaw/openclaw.json') as f:
+    cfg = json.load(f)
+for key in ['entries', 'installs']:
+    if 'plugins' in cfg and key in cfg['plugins'] and 'openclaw-rocketchat' in cfg['plugins'][key]:
+        del cfg['plugins'][key]['openclaw-rocketchat']
+with open('$HOME/.openclaw/openclaw.json', 'w') as f:
+    json.dump(cfg, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+"
+
+# 3. Reinstall
+npm cache clean --force
+openclaw plugins install openclaw-rocketchat
+openclaw rocketchat setup
+```
+
+</details>
+
+<details>
+<summary><b>How to completely start fresh (including Rocket.Chat reset)?</b></summary>
+
+```bash
+# 1. Stop and remove Rocket.Chat containers and data
+cd ~/rocketchat && docker compose down -v
+
+# 2. Remove plugin and credentials
+rm -rf ~/.openclaw/extensions/openclaw-rocketchat
+rm -rf ~/.openclaw/credentials/rocketchat
+
+# 3. Clean config file
+python3 -c "
+import json
+with open('$HOME/.openclaw/openclaw.json') as f:
+    cfg = json.load(f)
+for key in ['entries', 'installs']:
+    if 'plugins' in cfg and key in cfg['plugins'] and 'openclaw-rocketchat' in cfg['plugins'][key]:
+        del cfg['plugins'][key]['openclaw-rocketchat']
+if 'channels' in cfg and 'rocketchat' in cfg['channels']:
+    del cfg['channels']['rocketchat']
+cfg['bindings'] = [b for b in cfg.get('bindings', []) if b.get('match', {}).get('channel') != 'rocketchat']
+with open('$HOME/.openclaw/openclaw.json', 'w') as f:
+    json.dump(cfg, f, indent=2, ensure_ascii=False)
+    f.write('\n')
+"
+
+# 4. Start fresh
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
+openclaw plugins install openclaw-rocketchat
+openclaw rocketchat setup
+openclaw rocketchat add-bot
+```
+
+</details>
+
+<details>
+<summary><b>Rocket.Chat Docker management commands</b></summary>
+
+```bash
+# Check container status
+docker ps
+
+# View logs
+cd ~/rocketchat && docker compose logs -f
+
+# Stop service
+cd ~/rocketchat && docker compose stop
+
+# Start service
+cd ~/rocketchat && docker compose start
+
+# Restart service
+cd ~/rocketchat && docker compose restart
+
+# Completely uninstall (delete all data)
+cd ~/rocketchat && docker compose down -v
+```
+
+</details>
+
+<details>
 <summary><b>Are push notifications reliable in China?</b></summary>
 
 When the app is in the foreground, messages arrive via WebSocket in real-time with zero delay. In the background, notifications go through APNs with ~1-5 second delay, occasionally lost — consistent with most apps' push behavior in China.
