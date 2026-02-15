@@ -133,7 +133,7 @@ export default function register(api: any): void {
 
       rc.command("setup")
         .description(
-          "部署 Rocket.Chat（Docker）+ 创建管理员 + 创建手机登录账号",
+          "连接 Rocket.Chat 服务器 + 创建管理员 + 创建手机登录账号",
         )
         .action(async () => {
           await setupCommand(getConfigPath());

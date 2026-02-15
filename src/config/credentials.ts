@@ -15,11 +15,6 @@ function getCredentialsDir(): string {
   return join(homedir(), ".openclaw", "credentials", "rocketchat");
 }
 
-/** Docker compose 文件存储目录 */
-export function getDockerDir(): string {
-  return join(getCredentialsDir(), "docker");
-}
-
 /** 确保目录存在，macOS/Linux 上设置 0o700 权限 */
 async function ensureDir(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true, mode: 0o700 });

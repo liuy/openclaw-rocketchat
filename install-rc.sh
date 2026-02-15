@@ -1,21 +1,33 @@
 #!/usr/bin/env bash
 # ==============================================================
 # Rocket.Chat 一键安装脚本
-# 用于在远程 VPS 上快速部署 Rocket.Chat + MongoDB
+# 在任意 Linux/macOS 上快速部署 Rocket.Chat + MongoDB（Docker）
 #
-# 适用于「分离部署」模式：
-#   远程 VPS 上运行此脚本安装 RC
-#   本地 OpenClaw 运行 openclaw rocketchat setup 选择「连接远程服务器」
+# 适用于所有场景：
+#   - 本地部署：在 OpenClaw 同一台机器上运行
+#   - 远程部署：在公网 VPS 上运行，OpenClaw 在另一台机器
+#
+# 部署完成后运行 openclaw rocketchat setup 连接并配置
 #
 # 用法：
-#   curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
-#   或：
 #   bash install-rc.sh
+#   或远程一键安装：
+#   curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
 #   或指定端口：
-#   RC_PORT=3000 bash install-rc.sh
+#   RC_PORT=4000 bash install-rc.sh
+#   强制重装（跳过已安装检测）：
+#   bash install-rc.sh --force
 # ==============================================================
 
 set -euo pipefail
+
+# 解析参数
+FORCE_INSTALL=false
+for arg in "$@"; do
+  case "$arg" in
+    --force|-f) FORCE_INSTALL=true ;;
+  esac
+done
 
 # -----------------------------------------------
 # 配色
@@ -48,6 +60,66 @@ info "端口: ${RC_PORT}"
 info "安装目录: ${INSTALL_DIR}"
 echo ""
 
+# -----------------------------------------------
+# 0. 检测是否已安装
+# -----------------------------------------------
+if [[ "${FORCE_INSTALL}" == "true" ]]; then
+  warn "强制安装模式，跳过已安装检测"
+elif [[ -f "${INSTALL_DIR}/docker-compose.yml" ]]; then
+  warn "检测到已有 Rocket.Chat 安装（${INSTALL_DIR}）"
+  echo ""
+
+  # 检查容器是否正在运行
+  COMPOSE_CMD_CHECK="docker compose"
+  if ! docker compose version &>/dev/null; then
+    COMPOSE_CMD_CHECK="docker-compose"
+  fi
+
+  if cd "${INSTALL_DIR}" && ${COMPOSE_CMD_CHECK} ps --format '{{.State}}' 2>/dev/null | grep -qi "running"; then
+    success "Rocket.Chat 正在运行中！"
+
+    # 尝试获取公网 IP
+    PUBLIC_IP=""
+    for url in "https://ifconfig.me" "https://api.ipify.org" "https://icanhazip.com"; do
+      PUBLIC_IP=$(curl -s --max-time 5 "$url" 2>/dev/null | tr -d '[:space:]')
+      if [[ "$PUBLIC_IP" =~ ^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+        break
+      fi
+      PUBLIC_IP=""
+    done
+    [[ -z "$PUBLIC_IP" ]] && PUBLIC_IP="<你的公网IP>"
+
+    info "服务器地址: http://${PUBLIC_IP}:${RC_PORT}"
+    echo ""
+    info "如果需要重新安装，请先运行："
+    info "  cd ${INSTALL_DIR} && ${COMPOSE_CMD_CHECK} down -v"
+    info "  rm -rf ${INSTALL_DIR}"
+    info "然后重新运行本脚本。"
+    echo ""
+    info "如果只是要配置 OpenClaw 插件，直接运行："
+    info "  openclaw rocketchat setup"
+    exit 0
+  else
+    warn "容器未运行，尝试重新启动..."
+    if cd "${INSTALL_DIR}" && ${COMPOSE_CMD_CHECK} up -d 2>/dev/null; then
+      success "已重新启动！"
+      info "等待服务就绪后运行: openclaw rocketchat setup"
+      # 继续到等待就绪阶段
+      COMPOSE_CMD="${COMPOSE_CMD_CHECK}"
+
+      # 跳过安装步骤，直接等待就绪
+      SKIP_TO_WAIT=true
+    else
+      warn "启动失败，将重新安装..."
+    fi
+  fi
+fi
+
+# 如果是重启已有安装，跳到等待就绪
+if [[ "${SKIP_TO_WAIT:-}" == "true" ]]; then
+  # 直接跳到等待就绪（步骤 6）
+  :
+else
 # -----------------------------------------------
 # 1. 检测操作系统
 # -----------------------------------------------
@@ -168,31 +240,34 @@ services:
       - "${RC_PORT:-3000}:3000"
     environment:
       MONGO_URL: "mongodb://mongodb:27017/rocketchat?replicaSet=rs0"
-      MONGO_OPLOG_URL: "mongodb://mongodb:27017/local?replicaSet=rs0"
       ROOT_URL: "http://localhost:${RC_PORT:-3000}"
+      PORT: 3000
+      DEPLOY_METHOD: docker
       OVERWRITE_SETTING_Show_Setup_Wizard: "completed"
       OVERWRITE_SETTING_Accounts_RegistrationForm: "Disabled"
     depends_on:
-      mongodb:
-        condition: service_healthy
+      - mongodb
 
   mongodb:
-    image: docker.io/bitnami/mongodb:7.0
-    restart: unless-stopped
+    image: mongodb/mongodb-community-server:8.2-ubi8
+    restart: on-failure
     volumes:
-      - mongodb_data:/bitnami/mongodb
+      - mongodb_data:/data/db
     environment:
-      MONGODB_REPLICA_SET_MODE: primary
       MONGODB_REPLICA_SET_NAME: rs0
       MONGODB_PORT_NUMBER: 27017
       MONGODB_INITIAL_PRIMARY_HOST: mongodb
-      MONGODB_ADVERTISED_HOSTNAME: mongodb
-      ALLOW_EMPTY_PASSWORD: "yes"
-    healthcheck:
-      test: echo 'db.runCommand("ping").ok' | mongosh --quiet
-      interval: 10s
-      timeout: 5s
-      retries: 5
+    entrypoint: >
+      bash -c "
+        mongod --replSet $$MONGODB_REPLICA_SET_NAME --bind_ip_all &
+        sleep 2;
+        until mongosh --eval \"db.adminCommand('ping')\"; do
+          echo 'Waiting for MongoDB...';
+          sleep 1;
+        done;
+        mongosh --eval \"rs.initiate({_id: '$$MONGODB_REPLICA_SET_NAME', members: [{ _id: 0, host: '$$MONGODB_INITIAL_PRIMARY_HOST:$$MONGODB_PORT_NUMBER' }]})\";
+        echo 'ReplicaSet initiated';
+        wait"
 
 volumes:
   mongodb_data:
@@ -211,12 +286,14 @@ cd "${INSTALL_DIR}"
 ${COMPOSE_CMD} pull --quiet 2>/dev/null || ${COMPOSE_CMD} pull
 ${COMPOSE_CMD} up -d
 
+fi  # end SKIP_TO_WAIT else block
+
 # -----------------------------------------------
 # 6. 等待就绪
 # -----------------------------------------------
 step "等待 Rocket.Chat 启动..."
 
-MAX_WAIT=120
+MAX_WAIT=180
 WAITED=0
 INTERVAL=5
 

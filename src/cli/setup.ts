@@ -1,11 +1,10 @@
 // ============================================================
 // CLI: openclaw rocketchat setup
-// 首次部署 Rocket.Chat + 创建管理员 + 创建用户 + 写入配置
-// 支持两种模式：本地 Docker 部署 / 连接远程 RC 服务器
+// 连接 Rocket.Chat 服务器 + 创建管理员 + 创建用户 + 写入配置
+//
+// Docker 部署已独立到 install-rc.sh，本命令只负责"连接和配置"
 // ============================================================
 
-import { join } from "node:path";
-import { DockerManager } from "../docker/manager.js";
 import { RocketChatRestClient } from "../rc-api/rest-client.js";
 import { ConfigWriter } from "../config/writer.js";
 import {
@@ -14,7 +13,6 @@ import {
   generatePassword,
   generateAdminUsername,
   isSetupDone,
-  getDockerDir,
 } from "../config/credentials.js";
 import {
   ask,
@@ -30,222 +28,33 @@ import {
 } from "./prompts.js";
 
 export async function setupCommand(configPath: string): Promise<void> {
-  heading("Rocket.Chat 部署向导");
+  heading("Rocket.Chat 配置向导");
 
   // 检查是否已经 setup 过
   if (isSetupDone()) {
     warn("检测到已有 Rocket.Chat 配置。");
-    const proceed = await confirm("要重新部署吗？（会覆盖现有配置）");
+    const proceed = await confirm("要重新配置吗？（会覆盖现有配置）");
     if (!proceed) {
       info("已取消。");
       return;
     }
   }
 
-  // ----------------------------------------------------------
-  // 0. 选择部署模式
-  // ----------------------------------------------------------
-  const deployMode = await select("选择部署方式", [
-    {
-      label: "本地部署（Docker）—— RC 和 OpenClaw 在同一台机器",
-      value: "local",
-    },
-    {
-      label: "连接远程服务器 —— RC 已部署在另一台公网服务器",
-      value: "remote",
-    },
-  ]);
-
-  if (deployMode === "local") {
-    await setupLocal(configPath);
-  } else {
-    await setupRemote(configPath);
-  }
-}
-
-// ==============================================================
-// 本地 Docker 部署
-// ==============================================================
-
-async function setupLocal(configPath: string): Promise<void> {
-  // ----------------------------------------------------------
-  // 1. 环境检测
-  // ----------------------------------------------------------
-  step("检测环境...");
-
-  const dockerDir = getDockerDir();
-  const docker = new DockerManager(dockerDir);
-
-  const dockerCheck = await docker.isDockerInstalled();
-  if (!dockerCheck.installed) {
-    warn("未检测到 Docker！");
-    console.log("");
-    info("Docker 是运行 Rocket.Chat 的必备工具，请根据你的系统安装：");
-    console.log("");
-    info("  📦 Windows / macOS:");
-    info("     下载 Docker Desktop: https://www.docker.com/products/docker-desktop/");
-    info("     安装后启动 Docker Desktop，然后重新运行本命令。");
-    console.log("");
-    info("  🐧 Linux (Ubuntu/Debian):");
-    info("     curl -fsSL https://get.docker.com | sh");
-    info("     sudo usermod -aG docker $USER");
-    info("     （注销后重新登录，然后重新运行本命令）");
-    console.log("");
-    info("  🐧 Linux (CentOS/RHEL):");
-    info("     curl -fsSL https://get.docker.com | sh");
-    info("     sudo systemctl enable --now docker");
-    info("     sudo usermod -aG docker $USER");
-    console.log("");
-    const tryInstall = await confirm("是否尝试自动安装 Docker？（仅 Linux 有效）");
-    if (tryInstall) {
-      step("尝试自动安装 Docker...");
-      try {
-        const { execFile: execFileCb } = await import("node:child_process");
-        const { promisify } = await import("node:util");
-        const execFileAsync = promisify(execFileCb);
-        await execFileAsync("sh", ["-c", "curl -fsSL https://get.docker.com | sh"], { timeout: 300000 });
-        success("Docker 安装完成！");
-        // 重新检测
-        const recheck = await docker.isDockerInstalled();
-        if (!recheck.installed) {
-          error("安装后仍无法检测到 Docker，请手动检查。");
-          return;
-        }
-      } catch (err) {
-        error(`自动安装失败: ${(err as Error).message}`);
-        info("请按上面的说明手动安装 Docker，然后重新运行本命令。");
-        return;
-      }
-    } else {
-      info("请安装 Docker 后重新运行: openclaw rocketchat setup");
-      return;
-    }
-  }
-  info(`Docker:          已安装 (v${dockerCheck.version || "latest"})`);
-
-  const composeCheck = await docker.isComposeInstalled();
-  if (!composeCheck.installed) {
-    error("未检测到 Docker Compose！");
-    info("Docker Desktop 自带 Compose。如果你用的是 Linux，请运行：");
-    info("  sudo apt install docker-compose-plugin");
-    info("或参考: https://docs.docker.com/compose/install/");
-    return;
-  }
-  info(`Docker Compose:  已安装 (v${composeCheck.version})`);
-
-  // ----------------------------------------------------------
-  // 2. 用户输入
-  // ----------------------------------------------------------
-
-  // 端口
-  const portStr = await ask(
-    "端口\n  （Rocket.Chat 服务端口，手机连接时需要用到）",
-    "3000",
-  );
-  const port = parseInt(portStr, 10) || 3000;
-
-  if (port < 1 || port > 65535) {
-    error("端口号必须在 1-65535 之间！");
-    return;
-  }
-
-  const portAvailable = await docker.isPortAvailable(port);
-  if (!portAvailable) {
-    warn(`端口 ${port} 已被占用！`);
-    const proceed = await confirm("继续吗？（可能是已运行的 Rocket.Chat）");
-    if (!proceed) return;
-  } else {
-    info(`端口 ${port}:       可用`);
-  }
-
-  // 用户账号
-  const { username, password } = await promptUserAccount();
-  if (!username) return;
-
-  // ----------------------------------------------------------
-  // 3. 部署
-  // ----------------------------------------------------------
   console.log("");
-
-  // 3.1 生成 Docker 配置
-  step("生成 Docker 配置...");
-  await docker.generateComposeFile(port);
-  success("Docker 配置已生成");
-
-  // 3.2 拉取镜像和启动容器
-  step("拉取镜像并启动（首次约 2-5 分钟）...");
-  try {
-    await docker.start();
-  } catch (err) {
-    error(`Docker 启动失败: ${(err as Error).message}`);
-    info("请检查 Docker 是否正在运行。");
-    return;
-  }
-
-  // 3.3 等待就绪
-  try {
-    await docker.waitForReady(port, 120000, (msg) => {
-      step(msg);
-    });
-  } catch (err) {
-    error((err as Error).message);
-    return;
-  }
-  success("Rocket.Chat 服务已就绪");
-
-  // ----------------------------------------------------------
-  // 4. 创建账号
-  // ----------------------------------------------------------
-  const serverUrl = `http://127.0.0.1:${port}`;
-  const rc = new RocketChatRestClient(serverUrl);
-
-  const adminCreated = await createAdminAccount(rc, serverUrl, port);
-  if (!adminCreated) return;
-
-  await createPersonalAccount(rc, username, password!);
-
-  // ----------------------------------------------------------
-  // 5. 写入 openclaw.json 配置
-  // ----------------------------------------------------------
-  step("写入 openclaw.json 配置...");
-  const hostIp = docker.getHostIp();
-  const publicUrl = `http://${hostIp}:${port}`;
-
-  try {
-    const configWriter = new ConfigWriter(configPath);
-    await configWriter.readConfig();
-    configWriter.setRocketchatChannel(publicUrl, port);
-    await configWriter.save();
-    success("配置已写入");
-  } catch (err) {
-    error(`配置写入失败: ${(err as Error).message}`);
-    return;
-  }
-
-  // ----------------------------------------------------------
-  // 6. 完成提示
-  // ----------------------------------------------------------
-  printFinishBanner(publicUrl, username, port);
-}
-
-// ==============================================================
-// 远程模式：连接已有的 Rocket.Chat 服务器
-// ==============================================================
-
-async function setupRemote(configPath: string): Promise<void> {
+  info("本命令用于连接 Rocket.Chat 服务器并配置插件。");
+  info("如果还没有部署 Rocket.Chat，请先运行 install-rc.sh：");
   console.log("");
-  info("远程模式：连接已部署在其他服务器上的 Rocket.Chat。");
-  info("适用场景：");
-  info("  - OpenClaw 在家庭内网，RC 在公网 VPS");
-  info("  - 服务器内存不足，RC 单独部署在另一台机器");
-  info("  - 公司已有 Rocket.Chat 实例");
+  info("  本机部署:   bash install-rc.sh");
+  info("  远程 VPS:   SSH 到 VPS 上运行 bash install-rc.sh");
+  info("  指定端口:   RC_PORT=4000 bash install-rc.sh");
   console.log("");
 
   // ----------------------------------------------------------
-  // 1. 连接信息
+  // 1. 输入服务器地址
   // ----------------------------------------------------------
   const serverUrl = await ask(
-    "远程 Rocket.Chat 服务器地址\n  （例如 http://123.45.67.89:3000 或 https://chat.example.com）",
+    "Rocket.Chat 服务器地址\n  （本机部署填 http://127.0.0.1:3000，远程填 http://公网IP:端口）",
+    "http://127.0.0.1:3000",
   );
 
   if (!serverUrl) {
@@ -268,16 +77,19 @@ async function setupRemote(configPath: string): Promise<void> {
   step(`测试连接 ${cleanUrl} ...`);
   const rc = new RocketChatRestClient(cleanUrl);
 
+  let rcVersion = "";
   try {
-    const version = await rc.getServerVersion();
-    success(`连接成功！Rocket.Chat 版本: ${version}`);
-  } catch (err) {
+    rcVersion = await rc.getServerVersion();
+    success(`连接成功！Rocket.Chat 版本: ${rcVersion}`);
+  } catch {
     error(`无法连接到 ${cleanUrl}`);
     info("请检查：");
-    info("  1. 服务器地址和端口是否正确");
-    info("  2. 服务器是否已启动");
+    info("  1. Rocket.Chat 是否已启动（docker ps 查看）");
+    info("  2. 服务器地址和端口是否正确");
     info("  3. 防火墙是否已放行对应端口");
-    info("  4. 如果 OpenClaw 在内网，确保能访问公网地址");
+    info("  4. 如果是远程服务器，确保本机能访问该地址");
+    console.log("");
+    info("💡 还没部署 Rocket.Chat？运行: bash install-rc.sh");
     return;
   }
 
@@ -299,11 +111,9 @@ async function setupRemote(configPath: string): Promise<void> {
   ]);
 
   if (adminMode === "create") {
-    // 从零创建
-    const adminCreated = await createAdminAccount(rc, cleanUrl, 0);
+    const adminCreated = await createAdminAccount(rc, cleanUrl);
     if (!adminCreated) return;
   } else {
-    // 使用已有管理员
     const existingAdminUser = await ask("管理员用户名");
     const existingAdminPass = await askPassword("管理员密码");
     if (!existingAdminUser || !existingAdminPass) {
@@ -329,22 +139,13 @@ async function setupRemote(configPath: string): Promise<void> {
   }
 
   // ----------------------------------------------------------
-  // 4. 创建个人登录账号
+  // 4. 创建手机登录账号
   // ----------------------------------------------------------
   console.log("");
-  info("是否需要创建手机登录账号？");
-  info("（如果你已有账号，可以跳过这步）");
-  console.log("");
+  const { username, password } = await promptUserAccount();
+  if (!username) return;
 
-  const createAccount = await confirm("创建手机登录账号？");
-  let username = "";
-
-  if (createAccount) {
-    const result = await promptUserAccount();
-    username = result.username;
-    if (!username) return;
-    await createPersonalAccount(rc, username, result.password!);
-  }
+  await createPersonalAccount(rc, username, password!);
 
   // ----------------------------------------------------------
   // 5. 写入 openclaw.json 配置
@@ -354,7 +155,8 @@ async function setupRemote(configPath: string): Promise<void> {
   // 从 URL 提取端口
   let port = 3000;
   try {
-    port = new URL(cleanUrl).port ? parseInt(new URL(cleanUrl).port, 10) : (cleanUrl.startsWith("https") ? 443 : 80);
+    const url = new URL(cleanUrl);
+    port = url.port ? parseInt(url.port, 10) : (cleanUrl.startsWith("https") ? 443 : 80);
   } catch {
     // 保持默认
   }
@@ -377,16 +179,16 @@ async function setupRemote(configPath: string): Promise<void> {
 }
 
 // ==============================================================
-// 公共函数
+// 辅助函数
 // ==============================================================
 
 /** 提示输入用户名和密码 */
 async function promptUserAccount(): Promise<{ username: string; password: string | null }> {
-  console.log("");
   info("创建你的手机登录账号");
   info("（用这个账号在 Rocket.Chat App 上登录）");
+  console.log("");
 
-  const username = await ask("  用户名");
+  const username = await ask("用户名");
   if (!username) {
     error("用户名不能为空！");
     return { username: "", password: null };
@@ -396,7 +198,7 @@ async function promptUserAccount(): Promise<{ username: string; password: string
     return { username: "", password: null };
   }
 
-  const password = await askPassword("  密码");
+  const password = await askPassword("密码");
   if (!password) {
     error("密码不能为空！");
     return { username: "", password: null };
@@ -406,7 +208,7 @@ async function promptUserAccount(): Promise<{ username: string; password: string
     return { username: "", password: null };
   }
 
-  const confirmPwd = await askPassword("  确认密码");
+  const confirmPwd = await askPassword("确认密码");
   if (password !== confirmPwd) {
     error("两次密码不一致！");
     return { username: "", password: null };
@@ -419,7 +221,6 @@ async function promptUserAccount(): Promise<{ username: string; password: string
 async function createAdminAccount(
   rc: RocketChatRestClient,
   serverUrl: string,
-  port: number,
 ): Promise<boolean> {
   step("创建管理员（内部使用，你不需要记住）...");
   const adminUsername = generateAdminUsername();
@@ -427,7 +228,19 @@ async function createAdminAccount(
   const adminEmail = `${adminUsername}@openclaw.local`;
 
   try {
-    const adminResult = await rc.login("admin", "admin").catch(async () => {
+    // 尝试 1：用默认 admin/admin 登录（适用于全新 RC）
+    let savedUsername = adminUsername;
+    let savedPassword = adminPassword;
+
+    let adminResult: { userId: string; authToken: string };
+
+    try {
+      adminResult = await rc.login("admin", "admin");
+      // 默认 admin/admin 登录成功，保存正确的凭据
+      savedUsername = "admin";
+      savedPassword = "admin";
+    } catch {
+      // 尝试 2：注册新管理员
       const response = await fetch(`${serverUrl}/api/v1/users.register`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -443,23 +256,21 @@ async function createAdminAccount(
         throw new Error("无法创建管理员账号");
       }
 
-      return rc.login(adminUsername, adminPassword);
-    });
+      adminResult = await rc.login(adminUsername, adminPassword);
+    }
 
     await saveAdminCredentials({
       userId: adminResult.userId,
       authToken: adminResult.authToken,
-      username: adminUsername,
-      password: adminPassword,
+      username: savedUsername,
+      password: savedPassword,
     });
     success("管理员已创建");
     return true;
   } catch (err) {
     error(`管理员创建失败: ${(err as Error).message}`);
     info("你可能需要手动完成 Rocket.Chat 初始化。");
-    if (port > 0) {
-      info(`访问 http://127.0.0.1:${port} 完成设置向导。`);
-    }
+    info(`访问 ${serverUrl} 完成设置向导后重新运行 setup。`);
     return false;
   }
 }
@@ -495,7 +306,7 @@ async function createPersonalAccount(
 function printFinishBanner(publicUrl: string, username: string, port: number): void {
   console.log("");
   console.log("╔══════════════════════════════════════════╗");
-  console.log("║          🎉 部署完成！                    ║");
+  console.log("║          🎉 配置完成！                    ║");
   console.log("╚══════════════════════════════════════════╝");
   console.log("");
   info("📱 手机操作：");

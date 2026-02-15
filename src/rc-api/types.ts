@@ -99,13 +99,6 @@ export interface ServerInfo {
   success: boolean;
 }
 
-/** 容器状态 */
-export interface ContainerStatus {
-  rocketchat: "running" | "stopped" | "not_found";
-  mongodb: "running" | "stopped" | "not_found";
-  uptime?: string;
-}
-
 /** 凭据存储 - 管理员 */
 export interface AdminCredentials {
   userId: string;

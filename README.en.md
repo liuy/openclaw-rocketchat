@@ -117,7 +117,7 @@ Choose the deployment mode that fits your situation:
 |---|---|---|
 | **Who it's for** | Users with a public server | Home network, low-spec servers |
 | **RC runs on** | Same machine as OpenClaw | Separate cloud VPS |
-| **How to install** | `openclaw rocketchat setup` | `install-rc.sh` on VPS, connect locally |
+| **How to install** | `install-rc.sh` + `openclaw rocketchat setup` | `install-rc.sh` on VPS, connect locally |
 | **Advantage** | Simplest, one machine | OpenClaw can run at home, RC in the cloud |
 
 > Split deployment means even if your OpenClaw is on a **home LAN without a public IP**, a cheap VPS (1 core, 1 GB RAM is enough) lets your phone connect from anywhere.
@@ -235,60 +235,96 @@ Deploy once, access from phone, computer, tablet, or browser. Messages sync acro
 
 ### Prerequisites
 
-- [OpenClaw](https://docs.openclaw.ai/) installed (Docker will be auto-guided if not present)
-- A server with a **public IP** (Alibaba Cloud, AWS, etc.), or an existing remote Rocket.Chat server
+- [OpenClaw](https://docs.openclaw.ai/) installed
+- A server with a **public IP** (AWS, DigitalOcean, etc.)
 - Firewall / security group allows **port 3000** (or your custom port)
 
-### Step 1: Install Plugin + Deploy Rocket.Chat
+### Step 1: Deploy Rocket.Chat
+
+Run the one-click install script on your server (works for both local and remote):
+
+```bash
+bash install-rc.sh
+```
+
+Or install remotely without downloading first:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
+```
+
+You'll see:
+
+```
+╔══════════════════════════════════════════════════╗
+║   Rocket.Chat One-Click Install                  ║
+╚══════════════════════════════════════════════════╝
+
+  ⏳ Detecting Docker...
+  ✅ Docker installed (v29.2.1)
+  ✅ Docker Compose installed (v5.0.2)
+  ✅ Port 3000 available
+  ⏳ Generating docker-compose.yml...
+  ✅ Config generated
+  ⏳ Pulling images & starting (first time ~2-5 min)...
+  ✅ Rocket.Chat is ready!
+
+╔══════════════════════════════════════════════════════════╗
+║              🎉 Rocket.Chat installed!                    ║
+╚══════════════════════════════════════════════════════════╝
+
+  Server address: http://123.45.67.89:3000
+
+  📌 Next steps:
+     1️⃣  Make sure firewall allows port 3000
+     2️⃣  On your OpenClaw machine, run:
+         openclaw rocketchat setup
+```
+
+> Custom port: `RC_PORT=4000 bash install-rc.sh`
+> No Docker? The script auto-installs it.
+
+### Step 2: Install Plugin + Configure Connection
+
+Back on your OpenClaw machine:
 
 ```bash
 openclaw plugins install openclaw-rocketchat
 openclaw rocketchat setup
 ```
 
-First, choose a deployment mode:
+You'll see:
 
 ```
-=== Rocket.Chat Deployment Wizard ===
+=== Rocket.Chat Setup Wizard ===
 
-Choose deployment mode:
-  1) Local (Docker) — RC and OpenClaw on the same machine
-  2) Connect to remote server — RC already deployed elsewhere
+Rocket.Chat server address
+  (local: http://127.0.0.1:3000, remote: http://PUBLIC_IP:PORT)
+  [default http://127.0.0.1:3000]: http://123.45.67.89:3000
+
+  ⏳ Testing connection to http://123.45.67.89:3000 ...
+  ✅ Connected! Rocket.Chat version: 8.1.0
+
+Admin account
+  1) Auto-create new admin (recommended for fresh installs)
+  2) Use existing admin account
 Choose: 1
-```
 
-> Option 1 works for most users (everything on one machine).
-> Option 2 is for when OpenClaw is on a home LAN, server is low-spec, or your company already has RC.
-
-**After choosing 1 (local), you'll see:**
-
-```
-  ⏳ Checking environment...
-  Docker:          Installed (v27.1.1)
-  Docker Compose:  Installed (v2.29.1)
-  Port 3000:       Available
-
-Port [default 3000]: 3000
-
-Create your phone login account
-  Username: zhangsan
-  Password: ********
-  Confirm:  ********
-
-  ⏳ Generating Docker config...
-  ✅ Docker config generated
-  ⏳ Pulling images & starting (first time ~2-5 min)...
-  ⏳ Waiting for service... (30s)
-  ✅ Rocket.Chat is ready
   ⏳ Creating admin (internal, you don't need to remember)...
   ✅ Admin created
+
+Create your phone login account
+Username: zhangsan
+Password: ********
+Confirm:  ********
+
   ⏳ Creating account zhangsan...
   ✅ Account zhangsan created
   ⏳ Writing openclaw.json config...
   ✅ Config saved
 
 ╔══════════════════════════════════════════╗
-║          🎉 Deployment complete!         ║
+║          🎉 Setup complete!              ║
 ╚══════════════════════════════════════════╝
 
   📱 Phone setup:
@@ -300,9 +336,8 @@ Create your phone login account
   💡 Next: openclaw rocketchat add-bot
 ```
 
-**You only type 3 things: port, username, password. Everything else is automatic.**
 
-### Step 2: Add an AI Bot
+### Step 3: Add an AI Bot
 
 ```bash
 openclaw rocketchat add-bot
@@ -338,7 +373,7 @@ Bind to which Agent?
 
 **Type a bot name, pick an Agent number, done.**
 
-### Step 3: Download Rocket.Chat on Your Phone, Start Chatting
+### Step 4: Download Rocket.Chat on Your Phone, Start Chatting
 
 1. Download Rocket.Chat App
    - **iPhone**: Search **"Rocket.Chat"** on App Store
@@ -348,7 +383,7 @@ Bind to which Agent?
 3. Login with the credentials from Step 1
 4. Find the bot, send a message, start chatting!
 
-**That's it. 2 commands + download an app. You're done.**
+**That's it. 3 commands + download an app. You're done.**
 
 ---
 
@@ -555,7 +590,7 @@ openclaw rocketchat uninstall
 
 | Command | Description |
 |---|---|
-| `openclaw rocketchat setup` | Deploy Rocket.Chat + create accounts |
+| `openclaw rocketchat setup` | Connect to Rocket.Chat + create admin + create phone account |
 | `openclaw rocketchat add-bot` | Add bot + bind Agent + create DM |
 | `openclaw rocketchat add-group` | Create private channel (multi-bot group) |
 | `openclaw rocketchat add-user` | Add phone login user |

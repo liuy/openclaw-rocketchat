@@ -197,32 +197,25 @@ export class MessageHandler {
       return;
     }
 
-    try {
-      // execFileAsync 不走 shell，参数不会被 shell 解析，注入风险极低
-      await execFileAsync(
-        "openclaw",
-        [
-          "message",
-          "send",
-          "--channel",
-          "rocketchat",
-          "--account",
-          accountId,
-          "--target",
-          roomId,
-          "--sender",
-          senderId,
-          "-m",
-          text,
-        ],
-        { timeout: 30000 },
-      );
-    } catch (err) {
-      // 如果 openclaw CLI 不可用，记录错误但不抛出
-      this.logger.error(
-        `openclaw message send 失败: ${(err as Error).message}`,
-      );
-    }
+    // execFileAsync 不走 shell，参数不会被 shell 解析，注入风险极低
+    await execFileAsync(
+      "openclaw",
+      [
+        "message",
+        "send",
+        "--channel",
+        "rocketchat",
+        "--account",
+        accountId,
+        "--target",
+        roomId,
+        "--sender",
+        senderId,
+        "-m",
+        text,
+      ],
+      { timeout: 30000 },
+    );
   }
 
   // ----------------------------------------------------------

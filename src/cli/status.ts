@@ -3,13 +3,11 @@
 // 显示 Rocket.Chat 运行状态
 // ============================================================
 
-import { DockerManager } from "../docker/manager.js";
 import { RocketChatRestClient } from "../rc-api/rest-client.js";
 import { ConfigWriter } from "../config/writer.js";
 import {
   loadAdminCredentials,
   loadUserRecords,
-  getDockerDir,
 } from "../config/credentials.js";
 import { heading, info, warn, error } from "./prompts.js";
 
@@ -17,52 +15,52 @@ export async function statusCommand(configPath: string): Promise<void> {
   heading("Rocket.Chat 状态");
 
   // ----------------------------------------------------------
-  // 1. Docker 状态
+  // 1. 加载配置
   // ----------------------------------------------------------
-  const dockerDir = getDockerDir();
-  const docker = new DockerManager(dockerDir);
-
-  if (!docker.composeFileExists()) {
-    error("未找到 Docker 配置！请先运行: openclaw rocketchat setup");
-    return;
-  }
-
-  const containerStatus = await docker.getStatus();
-  const hostIp = docker.getHostIp();
-
   const configWriter = new ConfigWriter(configPath);
   await configWriter.readConfig();
   const rcConfig = configWriter.getRocketchatConfig();
-  const port = rcConfig?.port || 3000;
 
-  const rcStatusText =
-    containerStatus.rocketchat === "running"
-      ? `运行中 - http://${hostIp}:${port}`
-      : containerStatus.rocketchat === "stopped"
-        ? "已停止"
-        : "未找到";
-
-  const mongoStatusText =
-    containerStatus.mongodb === "running"
-      ? "运行中"
-      : containerStatus.mongodb === "stopped"
-        ? "已停止"
-        : "未找到";
-
-  info(`服务器:     ${rcStatusText}`);
-  if (containerStatus.uptime) {
-    info(`运行时间:   ${containerStatus.uptime}`);
+  if (!rcConfig?.serverUrl) {
+    error("未找到 Rocket.Chat 配置！请先运行: openclaw rocketchat setup");
+    return;
   }
-  info(`MongoDB:    ${mongoStatusText}`);
 
-  if (containerStatus.rocketchat !== "running") {
+  const serverUrl = rcConfig.serverUrl;
+  const port = rcConfig.port || 3000;
+
+  // ----------------------------------------------------------
+  // 2. 通过 REST API 检测服务器状态
+  // ----------------------------------------------------------
+  const adminCreds = await loadAdminCredentials();
+  let rc: RocketChatRestClient | null = null;
+  let serverOnline = false;
+  let rcVersion = "未知";
+
+  if (adminCreds) {
+    rc = new RocketChatRestClient(serverUrl);
+    rc.setAuth(adminCreds.userId, adminCreds.authToken);
+
+    try {
+      rcVersion = await rc.getServerVersion();
+      serverOnline = true;
+    } catch {
+      // 服务器不可达
+    }
+  }
+
+  if (serverOnline) {
+    info(`服务器:     运行中 - ${serverUrl} (v${rcVersion})`);
+  } else {
+    warn(`服务器:     无法连接 - ${serverUrl}`);
+    info("  请检查 Rocket.Chat 是否已启动：");
+    info("    docker ps  或  cd ~/rocketchat && docker compose ps");
     console.log("");
-    info('启动命令: openclaw rocketchat setup（或手动 docker compose up -d）');
     return;
   }
 
   // ----------------------------------------------------------
-  // 2. 用户列表
+  // 3. 用户列表
   // ----------------------------------------------------------
   console.log("");
   const users = await loadUserRecords();
@@ -72,16 +70,6 @@ export async function statusCommand(configPath: string): Promise<void> {
       const permLabel = u.permission === "readonly" ? " 🔒只读" : "";
       info(`  ${u.username}${permLabel}`);
     }
-  }
-
-  // ----------------------------------------------------------
-  // 3. 初始化 RC 客户端（复用，不重复加载）
-  // ----------------------------------------------------------
-  const adminCreds = await loadAdminCredentials();
-  let rc: RocketChatRestClient | null = null;
-  if (adminCreds && rcConfig?.serverUrl) {
-    rc = new RocketChatRestClient(rcConfig.serverUrl);
-    rc.setAuth(adminCreds.userId, adminCreds.authToken);
   }
 
   // ----------------------------------------------------------
@@ -146,6 +134,7 @@ export async function statusCommand(configPath: string): Promise<void> {
     console.log("");
     info("DM 私聊");
     for (const user of users) {
+      if (user.permission === "readonly") continue;
       for (const [, bot] of botEntries) {
         info(`  ${user.username} <-> ${bot.botUsername}`);
       }

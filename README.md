@@ -117,7 +117,7 @@ openclaw rocketchat setup
 |---|---|---|
 | **适合谁** | 有公网服务器的用户 | 内网用户、低配服务器 |
 | **RC 在哪** | 和 OpenClaw 同一台 | 单独一台公网 VPS |
-| **安装方式** | `openclaw rocketchat setup` | VPS 上跑 `install-rc.sh`，本地连接 |
+| **安装方式** | `install-rc.sh` + `openclaw rocketchat setup` | VPS 上跑 `install-rc.sh`，本地连接 |
 | **优点** | 最简单，一台搞定 | OpenClaw 可以在家里跑，RC 在云上 |
 
 > 分离部署意味着即使你的 OpenClaw 在**家庭内网**没有公网 IP，只要有一台便宜的 VPS（1 核 1G 就够），就能让手机随时随地连接。
@@ -235,60 +235,96 @@ Rocket.Chat 官方客户端下载：[rocket.chat/download-apps](https://www.rock
 
 ### 前置条件
 
-- [OpenClaw](https://docs.openclaw.ai/) 已安装（Docker 未安装时会自动引导安装）
-- 一台有**公网 IP** 的服务器（阿里云、腾讯云、AWS 等均可），或者已有远程 Rocket.Chat 服务器
+- [OpenClaw](https://docs.openclaw.ai/) 已安装
+- 一台有**公网 IP** 的服务器（阿里云、腾讯云、AWS 等均可）
 - 防火墙/安全组已放行 **3000 端口**（或你自定义的端口）
 
-### 第一步：安装插件 + 部署 Rocket.Chat
+### 第一步：部署 Rocket.Chat
+
+在你的服务器上运行一键安装脚本（本地或远程 VPS 都是同一条命令）：
+
+```bash
+bash install-rc.sh
+```
+
+或者远程一键安装（不用提前下载脚本）：
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
+```
+
+你会看到：
+
+```
+╔══════════════════════════════════════════════════╗
+║   Rocket.Chat 一键安装（OpenClaw 远程部署专用）     ║
+╚══════════════════════════════════════════════════╝
+
+  ⏳ 检测 Docker...
+  ✅ Docker 已安装 (v29.2.1)
+  ✅ Docker Compose 已安装 (v5.0.2)
+  ✅ 端口 3000 可用
+  ⏳ 生成 docker-compose.yml...
+  ✅ 配置文件已生成
+  ⏳ 拉取镜像并启动容器（首次约 2-5 分钟）...
+  ✅ Rocket.Chat 已就绪！
+
+╔══════════════════════════════════════════════════════════╗
+║              🎉 Rocket.Chat 安装完成！                    ║
+╚══════════════════════════════════════════════════════════╝
+
+  服务器地址: http://123.45.67.89:3000
+
+  📌 接下来的步骤：
+     1️⃣  确保防火墙已放行端口 3000
+     2️⃣  回到你的 OpenClaw 机器，运行：
+         openclaw rocketchat setup
+```
+
+> 指定端口：`RC_PORT=4000 bash install-rc.sh`
+> Docker 没装？脚本会自动安装。
+
+### 第二步：安装插件 + 配置连接
+
+回到你的 OpenClaw 机器，运行：
 
 ```bash
 openclaw plugins install openclaw-rocketchat
 openclaw rocketchat setup
 ```
 
-首先选择部署方式：
+你会看到：
 
 ```
-=== Rocket.Chat 部署向导 ===
+=== Rocket.Chat 配置向导 ===
 
-选择部署方式:
-  1) 本地部署（Docker）—— RC 和 OpenClaw 在同一台机器
-  2) 连接远程服务器 —— RC 已部署在另一台公网服务器
+Rocket.Chat 服务器地址
+  （本机部署填 http://127.0.0.1:3000，远程填 http://公网IP:端口）
+  [默认 http://127.0.0.1:3000]: http://123.45.67.89:3000
+
+  ⏳ 测试连接 http://123.45.67.89:3000 ...
+  ✅ 连接成功！Rocket.Chat 版本: 8.1.0
+
+管理员账号
+  1) 自动创建新管理员（推荐，适用于新装的 Rocket.Chat）
+  2) 使用已有管理员账号
 请选择: 1
-```
 
-> 选 1 适合大多数用户（一台机器搞定一切）。
-> 选 2 适合 OpenClaw 在家庭内网、服务器配置不足、或公司已有 RC 实例的情况。
-
-**选 1（本地部署）后你会看到：**
-
-```
-  ⏳ 检测环境...
-  Docker:          已安装 (v27.1.1)
-  Docker Compose:  已安装 (v2.29.1)
-  端口 3000:       可用
-
-端口 [默认 3000]: 3000
-
-创建你的手机登录账号
-  用户名: zhangsan
-  密码: ********
-  确认密码: ********
-
-  ⏳ 生成 Docker 配置...
-  ✅ Docker 配置已生成
-  ⏳ 拉取镜像并启动（首次约 2-5 分钟）...
-  ⏳ 等待服务就绪... (30s)
-  ✅ Rocket.Chat 服务已就绪
   ⏳ 创建管理员（内部使用，你不需要记住）...
   ✅ 管理员已创建
+
+创建你的手机登录账号
+用户名: zhangsan
+密码: ********
+确认密码: ********
+
   ⏳ 创建账号 zhangsan...
   ✅ 账号 zhangsan 已创建
   ⏳ 写入 openclaw.json 配置...
   ✅ 配置已写入
 
 ╔══════════════════════════════════════════╗
-║          🎉 部署完成！                    ║
+║          🎉 配置完成！                    ║
 ╚══════════════════════════════════════════╝
 
   📱 手机操作：
@@ -301,9 +337,7 @@ openclaw rocketchat setup
      openclaw rocketchat add-bot
 ```
 
-**你只需要输入 3 样东西：端口、用户名、密码。其他全部自动。**
-
-### 第二步：添加 AI 机器人
+### 第三步：添加 AI 机器人
 
 ```bash
 openclaw rocketchat add-bot
@@ -339,17 +373,17 @@ openclaw rocketchat add-bot
 
 **输入机器人名字、选一个 Agent 编号，就完事了。**
 
-### 第三步：手机下载 Rocket.Chat，开聊
+### 第四步：手机下载 Rocket.Chat，开聊
 
 1. 下载 Rocket.Chat App
    - **iPhone**：App Store 搜索 **"Rocket.Chat"**
    - **Android**：Google Play 搜索 **"Rocket.Chat"**，或从 [官网](https://www.rocket.chat/download-apps) 下载 APK
    - **电脑**：[官网下载桌面客户端](https://www.rocket.chat/download-apps)，或直接浏览器访问 `http://你的IP:3000`
 2. 打开 App，点击 **"Add Server"**，输入服务器地址：`http://你的公网IP:3000`
-3. 用第一步设置的用户名和密码登录
-4. 找到机器人，发消息，开聊！
+3. 用第二步设置的用户名和密码登录
+4. 找到第三步创建的机器人，发消息，开聊！
 
-**到这里就全部完成了。总共 2 条命令 + 手机下载 App。**
+**到这里就全部完成了。总共 3 条命令 + 手机下载 App。**
 
 ---
 
@@ -376,7 +410,7 @@ RC_PORT=4000 bash install-rc.sh
 - 启动服务并等待就绪
 - 输出服务器地址和后续步骤
 
-安装完成后，回到你的 OpenClaw 机器运行 `openclaw rocketchat setup`，选择"连接远程服务器"，填入 VPS 上输出的地址即可。
+安装完成后，回到你的 OpenClaw 机器运行 `openclaw rocketchat setup`，输入 VPS 上输出的地址即可。
 
 </details>
 
@@ -556,7 +590,7 @@ openclaw rocketchat uninstall
 
 | 命令 | 说明 |
 |---|---|
-| `openclaw rocketchat setup` | 部署 Rocket.Chat + 创建账号（首次使用） |
+| `openclaw rocketchat setup` | 连接 Rocket.Chat + 创建管理员 + 创建手机账号 |
 | `openclaw rocketchat add-bot` | 添加机器人 + 绑定 Agent + 建立私聊 |
 | `openclaw rocketchat add-group` | 创建私有频道（多机器人群组） |
 | `openclaw rocketchat add-user` | 添加手机登录用户 |
