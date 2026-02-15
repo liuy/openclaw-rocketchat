@@ -19,7 +19,7 @@
 
 </div>
 
-> **📖 Docs:** [Guide](docs/GUIDE.en.md) · [FAQ](docs/FAQ.en.md) · [Configuration](docs/CONFIGURATION.en.md) · [Architecture](docs/ARCHITECTURE.en.md) · [Security](docs/SECURITY.en.md)
+> **📖 Docs:** [Guide](docs/GUIDE.en.md) · [FAQ](docs/FAQ.en.md) · [Configuration](docs/CONFIGURATION.en.md) · [Architecture](docs/ARCHITECTURE.en.md) · [Security](docs/SECURITY.en.md) · [Multi-Agent](docs/MULTI-AGENT.en.md)
 
 ---
 
