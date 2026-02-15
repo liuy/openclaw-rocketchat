@@ -150,13 +150,14 @@ export class BotManager {
     botUsername: string,
     roomId: string,
     text: string,
+    options?: { tmid?: string },
   ): Promise<void> {
     const conn = this.bots.get(botUsername);
     if (!conn) {
       throw new Error(`机器人 ${botUsername} 未找到`);
     }
 
-    await conn.restClient.sendMessage(roomId, text);
+    await conn.restClient.sendMessage(roomId, text, options);
   }
 
   /** 通过机器人上传文件 */
@@ -172,6 +173,17 @@ export class BotManager {
     }
 
     await conn.restClient.uploadFile(roomId, fileBuffer, filename);
+  }
+
+  /** 发送正在输入状态 */
+  async sendTyping(
+    botUsername: string,
+    roomId: string,
+    typing: boolean,
+  ): Promise<void> {
+    const conn = this.bots.get(botUsername);
+    if (!conn?.connected) return;
+    await conn.wsClient.sendTyping(roomId, botUsername, typing);
   }
 
   /** 获取机器人的 REST 客户端 */

@@ -152,6 +152,19 @@ export class RocketChatWsClient {
     }
   }
 
+  /** 发送正在输入状态（Rocket.Chat "typing..." 指示器） */
+  async sendTyping(roomId: string, username: string, typing: boolean): Promise<void> {
+    try {
+      await this.callMethod("stream-notify-room", [
+        `${roomId}/typing`,
+        username,
+        typing,
+      ]);
+    } catch {
+      // 非关键操作，静默失败
+    }
+  }
+
   /** 断开连接 */
   disconnect(): void {
     this.disposed = true;

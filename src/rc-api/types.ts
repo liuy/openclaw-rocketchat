@@ -60,6 +60,16 @@ export interface RcMessage {
     type: string;
   };
   t?: string; // message type (system messages, etc.)
+  /** 线程父消息 ID（用户回复某条消息时，该字段指向被回复的消息） */
+  tmid?: string;
+  /** 线程消息是否显示在主时间线 */
+  tshow?: boolean;
+  /** 消息编辑时间 */
+  editedAt?: string;
+  /** 编辑者信息 */
+  editedBy?: { _id: string; username: string };
+  /** 消息中的链接 */
+  urls?: { url: string; meta?: Record<string, string> }[];
 }
 
 /** 附件 */
@@ -91,6 +101,8 @@ export interface SendMessageOptions {
   emoji?: string;
   avatar?: string;
   attachments?: RcAttachment[];
+  /** 线程父消息 ID（用于线程回复） */
+  tmid?: string;
 }
 
 /** 服务器信息 */

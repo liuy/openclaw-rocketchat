@@ -213,6 +213,19 @@ Deploy once, access from phone, computer, tablet, or browser. Messages sync acro
 - **No vendor lock-in** — export your data anytime (standard MongoDB format)
 - You're running a standard Rocket.Chat server — plug in more features in the future (video calls, file sharing, webhook integrations, etc.)
 
+### Technical Features (v0.7.0)
+
+| Feature | Description |
+|---------|-------------|
+| Typing Indicator | Shows "typing..." on phone while the Agent is thinking |
+| Threaded Replies | Agent replies are linked to the corresponding message thread |
+| Group History Context | When @mentioned, Agent sees recent group conversation for context |
+| Sender Identity | Agent distinguishes who is speaking in group chats |
+| Media File Upload | Agent-sent images/files are actually uploaded to Rocket.Chat |
+| @Mention State | Correctly passes `WasMentioned` field, matching official channel behavior |
+| authToken Compat | Auto-compatible with legacy credential format, no re-add needed |
+| One-Click Upgrade | `openclaw rocketchat upgrade` auto backup/restore config |
+
 ## Comparison
 
 > Full comparison table at [docs/ARCHITECTURE.en.md](docs/ARCHITECTURE.en.md)

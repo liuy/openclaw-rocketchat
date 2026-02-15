@@ -214,6 +214,19 @@ Rocket.Chat 官方客户端下载：[rocket.chat/download-apps](https://www.rock
 - **不绑定任何特定服务商**——不喜欢了可以随时迁移数据（MongoDB 标准格式导出）
 - 你用的是标准的 Rocket.Chat 服务器，未来还可以接入更多功能（视频会话、文件共享、Webhook 集成等）
 
+### 技术特性（v0.7.0）
+
+| 特性 | 说明 |
+|------|------|
+| 正在输入指示器 | Agent 思考时手机端显示 "正在输入..."，不再等得心慌 |
+| 线程回复 | Agent 回复自动关联到对应的消息线程 |
+| 群组历史上下文 | @机器人时，Agent 能看到群里最近的对话，不再"失忆" |
+| 发送者身份识别 | 群聊中 Agent 能区分是谁在说话 |
+| 媒体文件上传 | Agent 发送的图片/文件会真正上传到 Rocket.Chat，而非仅发链接 |
+| @提及状态 | 正确传递 `WasMentioned` 字段，与官方频道行为一致 |
+| authToken 兼容 | 自动兼容旧版凭据格式，升级无需重新添加机器人 |
+| 一键升级 | `openclaw rocketchat upgrade` 自动备份配置、安装新版、恢复配置 |
+
 ## 和其他方案的对比
 
 > 完整对比表请参阅 [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)

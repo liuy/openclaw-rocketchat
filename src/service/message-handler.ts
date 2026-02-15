@@ -35,6 +35,16 @@ interface MessageHandlerOptions {
   runtime?: any;
 }
 
+/** 群组历史消息条目（用于 InboundHistory） */
+interface HistoryEntry {
+  sender: string;
+  body: string;
+  timestamp?: number;
+}
+
+/** 群组历史消息的最大条目数 */
+const MAX_GROUP_HISTORY_ENTRIES = 10;
+
 export class MessageHandler {
   private botManager: BotManager;
   private config: Partial<RocketchatChannelConfig>;
@@ -46,6 +56,8 @@ export class MessageHandler {
   private processingMessages = new Set<string>();
   /** 群组房间映射：roomId → GroupRoomInfo（用于区分 DM 和群组） */
   private groupRooms = new Map<string, GroupRoomInfo>();
+  /** 群组消息历史：roomId → 最近被跳过的消息（用于 InboundHistory，参考 Telegram） */
+  private groupHistories = new Map<string, HistoryEntry[]>();
 
   constructor(options: MessageHandlerOptions) {
     this.botManager = options.botManager;
@@ -87,7 +99,10 @@ export class MessageHandler {
     setTimeout(cleanup, 60000);
 
     // 检查 @提及 规则（群组消息）
-    if (!this.shouldRespond(msg, botUsername, roomId)) {
+    const respondCheck = this.checkRespond(msg, botUsername, roomId);
+    if (!respondCheck.shouldRespond) {
+      // 群组中未被提及的消息：记录到历史（供后续 InboundHistory 使用）
+      this.recordGroupHistory(roomId, msg);
       cleanup();
       return;
     }
@@ -131,6 +146,8 @@ export class MessageHandler {
         roomId,
         agentId,
         msg._id,
+        respondCheck.wasMentioned,
+        msg.tmid,
       );
     } catch (err) {
       const errMsg = (err as Error).message || "";
@@ -163,11 +180,13 @@ export class MessageHandler {
   /**
    * 发送 Agent 回复到 Rocket.Chat
    * 由频道插件的 outbound.sendText 调用
+   * @param tmid 可选的线程父消息 ID（用于线程回复）
    */
   async handleOutbound(
     text: string,
     botUsername: string,
     roomId: string,
+    tmid?: string,
   ): Promise<void> {
     this.logger.info(
       `出站: ${botUsername} -> ${roomId}: ${text.slice(0, 100)}...`,
@@ -175,10 +194,11 @@ export class MessageHandler {
 
     // 长文本分块发送
     const chunks = this.splitText(text, MAX_MESSAGE_LENGTH);
+    const options = tmid ? { tmid } : undefined;
 
     for (const chunk of chunks) {
       try {
-        await this.botManager.sendMessage(botUsername, roomId, chunk);
+        await this.botManager.sendMessage(botUsername, roomId, chunk, options);
       } catch (err) {
         this.logger.error(
           `发送消息失败: ${(err as Error).message}`,
@@ -206,6 +226,8 @@ export class MessageHandler {
     roomId: string,
     agentId: string,
     messageId: string,
+    wasMentioned: boolean,
+    tmid?: string,
   ): Promise<void> {
     if (!this.runtime?.channel?.reply) {
       this.logger.error(
@@ -223,6 +245,8 @@ export class MessageHandler {
       roomId,
       agentId,
       messageId,
+      wasMentioned,
+      tmid,
     );
   }
 
@@ -245,6 +269,8 @@ export class MessageHandler {
     roomId: string,
     agentId: string,
     messageId: string,
+    wasMentioned: boolean,
+    tmid?: string,
   ): Promise<void> {
     const replyApi = this.runtime.channel.reply;
 
@@ -310,11 +336,23 @@ export class MessageHandler {
       SenderName: senderDisplayName,
       SenderUsername: senderUsername,
       Timestamp: Date.now(),
+      // 群组消息：是否被 @提及（参考 Telegram/Slack 的 WasMentioned 字段）
+      WasMentioned: isGroup ? wasMentioned : undefined,
+      // 回复上下文：引用的消息 ID（Rocket.Chat 的 tmid 字段）
+      ReplyToId: tmid || undefined,
     };
 
     // 群组消息额外字段
     if (isGroup && groupInfo) {
       rawCtx.GroupSubject = groupInfo.groupName;
+    }
+
+    // 群组历史上下文（参考 Telegram/Slack 的 InboundHistory）
+    if (isGroup) {
+      const history = this.getAndClearGroupHistory(roomId);
+      if (history.length > 0) {
+        rawCtx.InboundHistory = history;
+      }
     }
 
     // 1. 规范化上下文（如果 runtime 提供了 finalizeInboundContext）
@@ -353,6 +391,10 @@ export class MessageHandler {
           this.logger.error(
             `Agent 处理错误: ${err instanceof Error ? err.message : String(err)}`,
           );
+        },
+        onReplyStart: async () => {
+          // 发送 "正在输入..." 指示器到 Rocket.Chat
+          await this.botManager.sendTyping(botUsername, roomId, true).catch(() => {});
         },
       });
       dispatcher = result.dispatcher;
@@ -410,11 +452,59 @@ export class MessageHandler {
   }
 
   // ----------------------------------------------------------
+  // 内部：群组消息历史（InboundHistory）
+  // ----------------------------------------------------------
+
+  /**
+   * 记录被跳过的群组消息（未触发 Agent 的消息）到历史
+   * 当 Agent 被 @提及时，这些历史会作为 InboundHistory 传递，
+   * 让 Agent 了解群组中最近的对话上下文（参考 Telegram 的做法）
+   */
+  private recordGroupHistory(roomId: string, msg: RcMessage): void {
+    if (!this.groupRooms.has(roomId)) return;
+
+    const senderName = msg.u.name || msg.u.username;
+    const senderUsername = msg.u.username;
+    const senderLabel = senderName !== senderUsername
+      ? `${senderName} (@${senderUsername})`
+      : `@${senderUsername}`;
+
+    const entry: HistoryEntry = {
+      sender: senderLabel,
+      body: msg.msg || "",
+      timestamp: Date.now(),
+    };
+
+    let history = this.groupHistories.get(roomId);
+    if (!history) {
+      history = [];
+      this.groupHistories.set(roomId, history);
+    }
+
+    history.push(entry);
+
+    // 限制历史条目数
+    if (history.length > MAX_GROUP_HISTORY_ENTRIES) {
+      history.splice(0, history.length - MAX_GROUP_HISTORY_ENTRIES);
+    }
+  }
+
+  /**
+   * 获取并清空群组消息历史
+   * 在分发到 Agent 后调用，避免重复传递
+   */
+  private getAndClearGroupHistory(roomId: string): HistoryEntry[] {
+    const history = this.groupHistories.get(roomId) || [];
+    this.groupHistories.delete(roomId);
+    return history;
+  }
+
+  // ----------------------------------------------------------
   // 内部：@提及 判断
   // ----------------------------------------------------------
 
   /**
-   * 判断机器人是否应该响应该消息
+   * 判断机器人是否应该响应该消息，同时返回提及状态
    *
    * DM 消息：始终响应（roomId 不在 groupRooms 中）
    * 群组消息：
@@ -422,16 +512,16 @@ export class MessageHandler {
    *   2. 如果群组配置了 requireMention，只有直接 @机器人 才响应
    *   3. 如果未配置 requireMention，除了广播提及外都响应
    */
-  private shouldRespond(
+  private checkRespond(
     msg: RcMessage,
     botUsername: string,
     roomId: string,
-  ): boolean {
+  ): { shouldRespond: boolean; wasMentioned: boolean } {
     const groupInfo = this.groupRooms.get(roomId);
 
     // DM 消息：始终响应
     if (!groupInfo) {
-      return true;
+      return { shouldRespond: true, wasMentioned: false };
     }
 
     // ---- 群组消息逻辑 ----
@@ -450,15 +540,15 @@ export class MessageHandler {
 
     // 如果消息只有广播提及、没有直接 @机器人 → 不响应
     if (hasBroadcastMention && !isBotMentioned) {
-      return false;
+      return { shouldRespond: false, wasMentioned: false };
     }
 
     // 如果群组要求 @提及 才响应
     if (groupInfo.requireMention && !isBotMentioned) {
-      return false;
+      return { shouldRespond: false, wasMentioned: false };
     }
 
-    return true;
+    return { shouldRespond: true, wasMentioned: isBotMentioned };
   }
 
   // ----------------------------------------------------------

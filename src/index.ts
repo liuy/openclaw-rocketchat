@@ -58,6 +58,7 @@ async function sendOutbound(
   accountId: string | null | undefined,
   to: string,
   logger: { info: (msg: string) => void; error: (msg: string) => void },
+  threadId?: string | number | null,
 ): Promise<{ ok: boolean }> {
   if (!channelService) {
     logger.error("频道服务未启动，无法发送出站消息");
@@ -115,8 +116,11 @@ async function sendOutbound(
     return { ok: true }; // 空消息不需要发送
   }
 
+  // 转换 threadId 为 tmid 字符串
+  const tmid = threadId != null ? String(threadId) : undefined;
+
   try {
-    await handler.handleOutbound(text, botUsername, roomId);
+    await handler.handleOutbound(text, botUsername, roomId, tmid);
     return { ok: true };
   } catch (err) {
     logger.error(`出站发送失败: ${(err as Error).message}`);
@@ -224,11 +228,12 @@ export default function register(api: any): void {
           threadId?: string | number | null;
           silent?: boolean;
         }): Promise<{ channel: string; ok: boolean }> => {
-          const result = await sendOutbound(ctx.text, ctx.accountId, ctx.to, logger);
+          const result = await sendOutbound(ctx.text, ctx.accountId, ctx.to, logger, ctx.threadId);
           return { channel: "rocketchat", ...result };
         },
         /**
-         * Agent → 发送媒体到 Rocket.Chat（降级为文本链接）
+         * Agent → 发送媒体到 Rocket.Chat
+         * 优先下载并上传文件；失败时降级为文本链接
          */
         sendMedia: async (ctx: {
           cfg: any;
@@ -240,13 +245,61 @@ export default function register(api: any): void {
           threadId?: string | number | null;
           silent?: boolean;
         }): Promise<{ channel: string; ok: boolean }> => {
-          // 如果有媒体 URL，以文本链接形式发送
-          let text = ctx.text || "";
-          if (ctx.mediaUrl) {
-            text = text ? `${text}\n📎 ${ctx.mediaUrl}` : `📎 ${ctx.mediaUrl}`;
+          // 先发送文本部分（如果有）
+          if (ctx.text?.trim()) {
+            await sendOutbound(ctx.text, ctx.accountId, ctx.to, logger, ctx.threadId);
           }
-          const result = await sendOutbound(text, ctx.accountId, ctx.to, logger);
-          return { channel: "rocketchat", ...result };
+
+          // 尝试下载并上传媒体文件
+          if (ctx.mediaUrl) {
+            let uploaded = false;
+            try {
+              if (/^https?:\/\//i.test(ctx.mediaUrl) && channelService) {
+                const resp = await fetch(ctx.mediaUrl, {
+                  signal: AbortSignal.timeout(30000),
+                });
+                if (resp.ok) {
+                  const arrayBuf = await resp.arrayBuffer();
+                  const buf = Buffer.from(arrayBuf);
+                  // 从 URL 中提取文件名
+                  const urlPath = new URL(ctx.mediaUrl).pathname;
+                  const filename = urlPath.split("/").pop() || "file";
+
+                  // 解析 target 获取 botUsername 和 roomId
+                  const handler = channelService.getMessageHandler();
+                  const botManager = channelService.getBotManager();
+                  let botUsername = ctx.accountId || "";
+                  let roomId = ctx.to || "";
+                  if (!botUsername && roomId.includes(":")) {
+                    const ci = roomId.indexOf(":");
+                    const suffix = roomId.slice(ci + 1);
+                    if (/^[a-f0-9]{17,24}$/i.test(suffix)) {
+                      botUsername = roomId.slice(0, ci);
+                      roomId = suffix;
+                    }
+                  }
+                  if (!botUsername) {
+                    const bots = botManager?.getConnectedBots?.() || [];
+                    if (bots.length > 0) botUsername = bots[0];
+                  }
+
+                  if (botManager && botUsername && roomId) {
+                    await botManager.uploadFile(botUsername, roomId, buf, filename);
+                    uploaded = true;
+                  }
+                }
+              }
+            } catch (err) {
+              logger.error(`媒体上传失败，降级为链接: ${(err as Error).message}`);
+            }
+
+            // 降级：发送文本链接
+            if (!uploaded) {
+              await sendOutbound(`📎 ${ctx.mediaUrl}`, ctx.accountId, ctx.to, logger, ctx.threadId);
+            }
+          }
+
+          return { channel: "rocketchat", ok: true };
         },
       },
     },
