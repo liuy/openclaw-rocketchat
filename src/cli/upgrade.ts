@@ -189,7 +189,11 @@ export async function upgradeCommand(configPath: string): Promise<void> {
   // ----------------------------------------------------------
   step("安装新版插件...");
   try {
-    const output = execSync("openclaw plugins install openclaw-rocketchat", {
+    // 显式指定版本号，避免 npm 缓存导致装回旧版本
+    const installPkg = latestVersion && latestVersion !== "(查询中...)"
+      ? `openclaw-rocketchat@${latestVersion}`
+      : "openclaw-rocketchat@latest";
+    const output = execSync(`openclaw plugins install ${installPkg}`, {
       encoding: "utf-8",
       timeout: 120000,
       stdio: "pipe",
