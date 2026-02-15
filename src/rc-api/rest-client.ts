@@ -371,26 +371,39 @@ export class RocketChatRestClient {
 
   /** 获取服务器信息（健康检查，兼容 RC 6.x ~ 8.x） */
   async serverInfo(): Promise<ServerInfo> {
-    // RC 8.x 移除了 /api/v1/info，改用 /api/v1/login 做连通性测试
-    // 发送空登录请求，只要返回 JSON（即使是 401）就说明服务器正常
+    // 方式 1：/api/v1/info（RC 6.x ~ 7.x）
     try {
       const res = await this.request<{ info: { version: string }; success: boolean }>(
         "GET",
         "/info",
       );
       return { version: res.info?.version || "unknown", success: true };
-    } catch (err) {
-      // /api/v1/info 可能 404（RC 8.x），尝试通过登录接口探测
-      const url = `${this.serverUrl}/api/v1/login`;
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ user: "", password: "" }),
-      });
-      // 只要服务器响应 JSON 就算连通
-      await response.json();
-      return { version: "unknown", success: true };
+    } catch {
+      // 继续尝试其他方式
     }
+
+    // 方式 2：/api/v1/login 探测连通性 + 从 HTML 提取版本（RC 8.x）
+    const loginUrl = `${this.serverUrl}/api/v1/login`;
+    const response = await fetch(loginUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ user: "", password: "" }),
+    });
+    await response.json(); // 只要返回 JSON 就算连通
+
+    // 尝试从根页面 HTML 提取版本号
+    let version = "unknown";
+    try {
+      const html = await (await fetch(this.serverUrl)).text();
+      // RC 在 HTML 中嵌入了 __meteor_runtime_config__，包含版本
+      const match = html.match(/(?:Rocket\.Chat|version)['":\s]+([\d.]+)/i)
+        || html.match(/"autoupdate":.*?"version":"([\d.]+)"/);
+      if (match) version = match[1];
+    } catch {
+      // 版本获取不影响功能
+    }
+
+    return { version, success: true };
   }
 
   /** 获取服务器版本号（连通性测试用） */

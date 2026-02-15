@@ -277,8 +277,11 @@ You'll see:
 
   📌 Next steps:
      1️⃣  Make sure firewall allows port 3000
-     2️⃣  On your OpenClaw machine, run:
+     2️⃣  On your OpenClaw machine, install plugin and configure:
+         openclaw plugins install openclaw-rocketchat
          openclaw rocketchat setup
+     3️⃣  Add an AI bot:
+         openclaw rocketchat add-bot
 ```
 
 > Custom port: `RC_PORT=4000 bash install-rc.sh`
@@ -311,6 +314,7 @@ Admin account
 Choose: 1
 
   ⏳ Creating admin (internal, you don't need to remember)...
+  Public registration disabled (secure)
   ✅ Admin created
 
 Create your phone login account

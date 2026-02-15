@@ -277,8 +277,11 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 
   📌 接下来的步骤：
      1️⃣  确保防火墙已放行端口 3000
-     2️⃣  回到你的 OpenClaw 机器，运行：
+     2️⃣  回到你的 OpenClaw 机器，安装插件并配置：
+         openclaw plugins install openclaw-rocketchat
          openclaw rocketchat setup
+     3️⃣  添加 AI 机器人：
+         openclaw rocketchat add-bot
 ```
 
 > 指定端口：`RC_PORT=4000 bash install-rc.sh`
@@ -311,6 +314,7 @@ Rocket.Chat 服务器地址
 请选择: 1
 
   ⏳ 创建管理员（内部使用，你不需要记住）...
+  已自动关闭公开注册（安全）
   ✅ 管理员已创建
 
 创建你的手机登录账号

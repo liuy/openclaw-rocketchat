@@ -319,7 +319,10 @@ async function createPersonalAccount(
 }
 
 /** 打印完成横幅 */
-function printFinishBanner(publicUrl: string, username: string, port: number): void {
+function printFinishBanner(serverUrl: string, username: string, port: number): void {
+  // 如果是 localhost/127.0.0.1，提醒用户手机要用公网 IP
+  const isLocal = /localhost|127\.0\.0\.1/.test(serverUrl);
+
   console.log("");
   console.log("╔══════════════════════════════════════════╗");
   console.log("║          🎉 配置完成！                    ║");
@@ -327,7 +330,12 @@ function printFinishBanner(publicUrl: string, username: string, port: number): v
   console.log("");
   info("📱 手机操作：");
   info(`   1. App Store 搜索下载 "Rocket.Chat"`);
-  info(`   2. 打开 App，服务器填: ${publicUrl}`);
+  if (isLocal) {
+    info(`   2. 打开 App，服务器填: http://你的公网IP:${port}`);
+    info("      （手机不能用 127.0.0.1，需要填服务器的公网 IP）");
+  } else {
+    info(`   2. 打开 App，服务器填: ${serverUrl}`);
+  }
   if (username) {
     info(`   3. 用户名: ${username}`);
     info("   4. 密码: 你设置的密码");
