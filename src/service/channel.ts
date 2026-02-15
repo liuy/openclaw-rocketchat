@@ -103,9 +103,11 @@ export class ChannelService {
       runtime: this.runtime,
     });
 
-    // 5. 设置消息回调
+    // 5. 设置消息回调（handleInbound 返回 Promise，需要 catch 防止 unhandled rejection）
     this.botManager.onMessage((msg, roomId, botUsername, agentId) => {
-      this.messageHandler!.handleInbound(msg, roomId, botUsername, agentId);
+      this.messageHandler!.handleInbound(msg, roomId, botUsername, agentId).catch((err) => {
+        this.logger.error(`消息处理异常: ${(err as Error).message}`);
+      });
     });
 
     // 6. 连接所有机器人

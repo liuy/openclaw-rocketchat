@@ -215,21 +215,15 @@ Deploy once, access from phone, computer, tablet, or browser. Messages sync acro
 
 ## Comparison
 
+> Full comparison table at [docs/ARCHITECTURE.en.md](docs/ARCHITECTURE.en.md)
+
 |  | Feishu | Telegram | WhatsApp | This Plugin |
 |---|---|---|---|---|
 | **China Available** | ✅ | ❌ VPN needed | ❌ Foreign # needed | ✅ |
-| **Setup Complexity** | 🔴 High | 🔴 High (VPN) | 🔴 High | 🟢 One command |
-| **Dedicated AI Space** | ❌ Mixed with work | ❌ Mixed with social | ❌ Mixed with social | ✅ Dedicated |
-| **Dedicated Notifications** | ❌ Mixed | ❌ Buried | ❌ Buried | ✅ Standalone |
-| **Data Privacy** | 🟡 Via Feishu servers | 🟡 Via TG servers | 🟡 Via Meta servers | 🟢 Fully local |
-| **Multi-Agent** | Manual config | Supported | Supported | ✅ Interactive setup |
-| **Group Multi-Bot** | Limited | Supported | Not supported | ✅ Supported |
-| **Multi-User Team** | Enterprise only | ❌ Separate setups | ❌ Separate setups | ✅ One deploy for all |
-| **Permission Control** | Enterprise only | ❌ | ❌ | ✅ Full/Read-Only |
-| **Split Deployment** | ❌ | ❌ | ❌ | ✅ Home LAN works |
-| **Self-Hosted** | ❌ | ❌ | ❌ | ✅ |
-| **Free** | Limited | Yes | Yes | ✅ Completely free |
-| **Open Source** | ❌ | ❌ | ❌ | ✅ MIT |
+| **Setup Complexity** | 🔴 High | 🔴 High | 🔴 High | 🟢 One command |
+| **Data Privacy** | 🟡 Via 3rd party | 🟡 Via 3rd party | 🟡 Via 3rd party | 🟢 Fully local |
+| **Multi-User Team** | Enterprise only | ❌ | ❌ | ✅ One deploy for all |
+| **Free & Open Source** | ❌ | ❌ | ❌ | ✅ MIT |
 
 ## Quick Start
 
@@ -420,6 +414,18 @@ Bind to which Agent?
 4. If you don't see the bot in your conversation list, tap the search icon in the top-left corner, type the bot's username to find and start chatting!
 
 **That's it. 3 commands + download an app. You're done.**
+
+<details>
+<summary><b>📱 Mobile App Screenshots (click to expand)</b></summary>
+
+| Step | Screenshot |
+|------|-----------|
+| Open App, enter server URL | <img src="images/1.jpg" width="280"> |
+| Tap Connect to reach login | <img src="images/2.jpg" width="280"> |
+| Conversation list after login | <img src="images/3.jpg" width="280"> |
+| Chat with your AI bot | <img src="images/4.jpg" width="280"> |
+
+</details>
 
 ---
 
@@ -639,249 +645,30 @@ All commands are **interactive** — no flags to memorize, just follow the promp
 
 All config is written automatically by CLI commands into `~/.openclaw/openclaw.json`. You normally don't need to edit it manually, but understanding the structure helps with troubleshooting and advanced customization.
 
-### channels.rocketchat — Channel Config
+> **Full configuration docs (parameter tables + JSON example + manual editing + full reset): [docs/CONFIGURATION.en.md](docs/CONFIGURATION.en.md)**
 
-| Parameter | Type | Default | Description |
-|-----------|------|---------|-------------|
-| `enabled` | `boolean` | `false` | Enable/disable the Rocket.Chat channel |
-| `serverUrl` | `string` | — | Rocket.Chat server URL, e.g. `"https://123-45-67-89.sslip.io"` or `"https://127.0.0.1"` (co-located) |
-| `port` | `number` | `443` | Rocket.Chat HTTPS port (the port specified during `install-rc.sh` installation) |
-| `dmPolicy` | `string` | `"pairing"` | DM policy. `"pairing"` means setup auto-creates DM channels between users and bots |
-| `accounts` | `object` | `{}` | Bot accounts. Key is the bot ID (written by `add-bot` command) |
-| `accounts.<id>.botUsername` | `string` | — | Bot's username in Rocket.Chat |
-| `accounts.<id>.botDisplayName` | `string` | — | Bot's display name (supports Unicode) |
-| `groups` | `object` | `{}` | Group config (written by `add-group` command). Key is the group name |
-| `groups.<name>.bots` | `string[]` | — | Bots in this group (matching keys in `accounts`) |
-| `groups.<name>.requireMention` | `boolean` | `false` | Whether bot requires `@mention` to respond. `false`: responds to all messages; `true`: only responds when directly `@mentioned` (recommended for multi-bot groups to avoid all bots replying at once) |
+Quick reference for the most common parameters:
 
-> **Broadcast mentions**: `@here`, `@all`, `@everyone` never trigger bot responses, even when `requireMention` is `false`. Only direct `@botname` mentions trigger a response.
+| Parameter | Description |
+|-----------|-------------|
+| `channels.rocketchat.enabled` | Enable/disable channel |
+| `channels.rocketchat.serverUrl` | Server URL (`https://127.0.0.1` for co-located, sslip.io domain for remote) |
+| `channels.rocketchat.port` | HTTPS port (default `443`) |
+| `channels.rocketchat.accounts.<id>` | Bot accounts (written by `add-bot`) |
+| `channels.rocketchat.groups.<name>.requireMention` | @mention rule (`true`: only respond to @bot) |
+| `bindings[].agentId` | Bot-to-Agent binding |
+| `plugins.entries.openclaw-rocketchat.enabled` | Plugin enabled state |
 
-### bindings — Agent Bindings
-
-The `bindings` array maps bot accounts to Agents (written by `add-bot` command):
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `agentId` | `string` | The Agent ID to bind to (e.g. `"main"`). Created via `openclaw agents add` |
-| `match.channel` | `string` | Always `"rocketchat"` |
-| `match.accountId` | `string` | Matches a key in `channels.rocketchat.accounts` |
-
-### plugins — Plugin Config
-
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `entries.openclaw-rocketchat.enabled` | `boolean` | Whether the plugin is enabled. Gateway auto-detects and sets to `true` on start |
-| `installs.openclaw-rocketchat.source` | `string` | Installation source, typically `"npm"` |
-| `installs.openclaw-rocketchat.spec` | `string` | Installed package spec, e.g. `"openclaw-rocketchat@0.4.2"` |
-| `installs.openclaw-rocketchat.installPath` | `string` | Plugin installation path, e.g. `"~/.openclaw/extensions/openclaw-rocketchat"` |
-| `installs.openclaw-rocketchat.version` | `string` | Currently installed version |
-| `installs.openclaw-rocketchat.installedAt` | `string` | Installation timestamp (ISO format) |
-
-### Full Config Example
-
-Below shows the Rocket.Chat plugin-related sections of `~/.openclaw/openclaw.json` (omitting `meta`, `auth`, `models`, `agents`, `gateway`, and other unrelated sections):
-
-```json5
-{
-  // Rocket.Chat channel config (written by setup / add-bot / add-group)
-  "channels": {
-    "rocketchat": {
-      "enabled": true,
-      "serverUrl": "https://127.0.0.1",     // Use 127.0.0.1 for co-located; use sslip.io domain for remote
-      "port": 443,                            // Rocket.Chat HTTPS port
-      "dmPolicy": "pairing",                  // DM policy
-      "accounts": {
-        "molty": {                            // Bot 1
-          "botUsername": "molty",
-          "botDisplayName": "Lobster"
-        },
-        "work-bot": {                         // Bot 2 (optional, multiple bots)
-          "botUsername": "work-bot",
-          "botDisplayName": "Work Helper"
-        }
-      },
-      "groups": {                             // Groups (optional)
-        "AI Squad": {
-          "requireMention": false,            // Responds to all messages
-          "bots": ["molty", "work-bot"]       // Bots in this group
-        },
-        "Tech Talk": {
-          "requireMention": true,             // Only responds when @mentioned
-          "bots": ["molty"]
-        }
-      }
-    }
-  },
-
-  // Bot → Agent bindings (written by add-bot)
-  "bindings": [
-    {
-      "agentId": "main",                      // Bound to main Agent
-      "match": {
-        "channel": "rocketchat",
-        "accountId": "molty"                   // Matches key in accounts
-      }
-    },
-    {
-      "agentId": "work",                      // Different bots can bind to different Agents
-      "match": {
-        "channel": "rocketchat",
-        "accountId": "work-bot"
-      }
-    }
-  ],
-
-  // Plugin state
-  "plugins": {
-    "entries": {
-      "openclaw-rocketchat": { "enabled": true }
-    },
-    "installs": {
-      "openclaw-rocketchat": {
-        "source": "npm",
-        "spec": "openclaw-rocketchat@0.4.2",
-        "installPath": "/root/.openclaw/extensions/openclaw-rocketchat",
-        "version": "0.4.2",
-        "installedAt": "2026-02-15T07:37:17.498Z"
-      }
-    }
-  }
-}
-```
-
-### Manual Editing
-
-If auto-configuration has issues, edit `~/.openclaw/openclaw.json` directly:
-
-```bash
-# Edit config
-vi ~/.openclaw/openclaw.json
-
-# Restart Gateway to apply changes
-openclaw gateway restart
-```
-
-**Common manual edits:**
-
-- **Change server URL**: Edit `channels.rocketchat.serverUrl` (`https://127.0.0.1` for co-located, `https://IP.sslip.io` for remote)
-- **Change port**: Edit `channels.rocketchat.port`
-- **Disable/enable channel**: Set `channels.rocketchat.enabled` to `false` / `true`
-- **Rebind bot to different Agent**: Edit `bindings` array, change `agentId`
-- **Remove a bot**: Delete entries from both `accounts` and `bindings`
-- **Toggle @mention requirement**: Edit `groups.<name>.requireMention`
-- **Upgrade plugin version**: Update `plugins.installs.openclaw-rocketchat.version` and `spec`
-
-> **Note**: Bot credentials (passwords, tokens) are stored in `~/.openclaw/credentials/`, separate from `openclaw.json`. If you reinstall a bot, clean up the credentials directory as well.
-
-### Full Reset
-
-To completely remove Rocket.Chat config and start over:
-
-```bash
-# Stop Gateway
-openclaw gateway stop
-
-# Remove plugin and credentials
-rm -rf ~/.openclaw/extensions/openclaw-rocketchat
-rm -rf ~/.openclaw/credentials/rocketchat*
-
-# Remove RC-related config entries
-python3 -c "
-import json
-p = '$HOME/.openclaw/openclaw.json'
-with open(p) as f:
-    c = json.load(f)
-c.get('channels', {}).pop('rocketchat', None)
-c['bindings'] = [b for b in c.get('bindings', []) if b.get('match', {}).get('channel') != 'rocketchat']
-c.get('plugins', {}).get('entries', {}).pop('openclaw-rocketchat', None)
-c.get('plugins', {}).get('entries', {}).pop('rocketchat', None)
-c.get('plugins', {}).get('installs', {}).pop('openclaw-rocketchat', None)
-with open(p, 'w') as f:
-    json.dump(c, f, indent=2, ensure_ascii=False)
-print('Done')
-"
-
-# Reinstall and reconfigure
-openclaw plugins install openclaw-rocketchat
-openclaw rocketchat setup
-openclaw rocketchat add-bot
-```
+> **Note**: Bot credentials are stored in `~/.openclaw/credentials/`, separate from config.
 
 ## Architecture
 
-### Mode A: Co-located
-
-Everything on one server — simplest setup.
+> Detailed architecture diagrams at [docs/ARCHITECTURE.en.md](docs/ARCHITECTURE.en.md)
 
 ```
-┌─────────────────────────────────────────────┐
-│              📱 Your Phone                   │
-│           Rocket.Chat App                    │
-└─────────────┬───────────────────────────────┘
-              │ HTTPS (:443)
-┌─────────────▼───────────────────────────────┐
-│       Your Server (one machine does it all)  │
-│                                              │
-│  ┌──────────────────────────────────────┐   │
-│  │  Docker                               │   │
-│  │  ┌───────┐  ┌──────────┐  ┌───────┐  │   │
-│  │  │ Nginx │─▸│Rocket.Chat│─▸│MongoDB│  │   │
-│  │  │ :443  │  │  :3000   │  │       │  │   │
-│  │  │(HTTPS)│  │(internal)│  │       │  │   │
-│  │  └───────┘  └──────────┘  └───────┘  │   │
-│  └──────────────────────────────────────┘   │
-│                                              │
-│  ┌──────────────────────────────────────┐   │
-│  │  OpenClaw Gateway                     │   │
-│  │  @openclaw/rocketchat plugin          │   │
-│  │  ┌─────────────┐                     │   │
-│  │  │ Agent: main │                     │   │
-│  │  │ Agent: work │                     │   │
-│  │  └─────────────┘                     │   │
-│  └──────────────────────────────────────┘   │
-└──────────────────────────────────────────────┘
+Mode A (Co-located):  Phone → HTTPS → [Nginx + RC + MongoDB + OpenClaw] all on one machine
+Mode B (Split):       Phone → HTTPS → [VPS: Nginx + RC + MongoDB] ← WebSocket ← [Home LAN: OpenClaw]
 ```
-
-### Mode B: Split Deployment
-
-RC on a cloud VPS, OpenClaw on home network or low-spec machine. Great when you don't have a public IP or need to save memory.
-
-```
-┌─────────────────────────────────────────────┐
-│              📱 Your Phone                   │
-│           Rocket.Chat App                    │
-└─────────────┬───────────────────────────────┘
-              │ HTTPS (:443)
-┌─────────────▼───────────────────────────────┐
-│    Cloud VPS (cheap 1C1G is enough)          │
-│                                              │
-│  ┌──────────────────────────────────────┐   │
-│  │  Docker (install-rc.sh one-click)     │   │
-│  │  ┌───────┐  ┌──────────┐  ┌───────┐  │   │
-│  │  │ Nginx │─▸│Rocket.Chat│─▸│MongoDB│  │   │
-│  │  │ :443  │  │  :3000   │  │       │  │   │
-│  │  │(HTTPS)│  │(internal)│  │       │  │   │
-│  │  └───────┘  └─────▲────┘  └───────┘  │   │
-│  └───────────────────┼──────────────────┘   │
-└──────────────────────┼───────────────────────┘
-                       │ HTTPS/WebSocket (public network)
-┌──────────────────────┼───────────────────────┐
-│       Home Network / Local Machine            │
-│                      │                        │
-│  ┌───────────────────┴──────────────────┐    │
-│  │  OpenClaw Gateway                     │    │
-│  │  @openclaw/rocketchat plugin          │    │
-│  │  (connects to remote RC via internet) │    │
-│  │                                       │    │
-│  │  ┌─────────────┐                      │    │
-│  │  │ Agent: main │                      │    │
-│  │  │ Agent: work │                      │    │
-│  │  └─────────────┘                      │    │
-│  └───────────────────────────────────────┘    │
-└───────────────────────────────────────────────┘
-```
-
-> For Mode B, just run `install-rc.sh` on your remote VPS to install Rocket.Chat (with Nginx HTTPS + auto sslip.io domain), then run `openclaw rocketchat setup` locally and enter `https://VPS-IP.sslip.io`.
 
 ## FAQ
 
@@ -906,50 +693,16 @@ If you know the admin username/password, re-run setup and choose "Use existing a
 </details>
 
 <details>
-<summary><b>How to reinstall the plugin / start over?</b></summary>
+<summary><b>How to reinstall the plugin / start completely fresh?</b></summary>
+
+> Full reset steps also at [docs/CONFIGURATION.en.md — Full Reset](docs/CONFIGURATION.en.md#full-reset)
 
 ```bash
 # 1. Stop Gateway
 openclaw gateway stop
 
-# 2. Remove old plugin and credentials
-rm -rf ~/.openclaw/extensions/openclaw-rocketchat
-rm -rf ~/.openclaw/credentials/rocketchat*
-
-# 3. Clean all Rocket.Chat related config entries
-python3 -c "
-import json
-p = '$HOME/.openclaw/openclaw.json'
-with open(p) as f:
-    c = json.load(f)
-c.get('channels', {}).pop('rocketchat', None)
-c['bindings'] = [b for b in c.get('bindings', []) if b.get('match', {}).get('channel') != 'rocketchat']
-c.get('plugins', {}).get('entries', {}).pop('openclaw-rocketchat', None)
-c.get('plugins', {}).get('entries', {}).pop('rocketchat', None)
-c.get('plugins', {}).get('installs', {}).pop('openclaw-rocketchat', None)
-with open(p, 'w') as f:
-    json.dump(c, f, indent=2, ensure_ascii=False)
-print('Done')
-"
-
-# 4. Reinstall and reconfigure
-openclaw plugins install openclaw-rocketchat
-openclaw rocketchat setup
-openclaw rocketchat add-bot
-openclaw gateway start
-```
-
-</details>
-
-<details>
-<summary><b>How to completely start fresh (including Rocket.Chat reset)?</b></summary>
-
-```bash
-# 1. Stop Gateway
-openclaw gateway stop
-
-# 2. Stop and remove Rocket.Chat containers and data
-cd ~/rocketchat && docker compose down -v
+# 2. (Optional) To also reset Rocket.Chat data:
+# cd ~/rocketchat && docker compose down -v
 
 # 3. Remove plugin and credentials
 rm -rf ~/.openclaw/extensions/openclaw-rocketchat
@@ -971,8 +724,7 @@ with open(p, 'w') as f:
 print('Done')
 "
 
-# 5. Start fresh
-curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
+# 5. Reinstall (if you reset RC in step 2, run install-rc.sh first)
 openclaw plugins install openclaw-rocketchat
 openclaw rocketchat setup
 openclaw rocketchat add-bot
@@ -1057,13 +809,12 @@ Plain text, Markdown (with syntax highlighting), images, files, and voice messag
 Yes. Use `openclaw rocketchat add-user` to add more phone users (family, colleagues). Each person downloads Rocket.Chat and logs in with their own account.
 </details>
 
-## Tech Stack
+## More Documentation
 
-- **TypeScript** — Consistent with the OpenClaw ecosystem
-- **Rocket.Chat REST API** — User/group/message management
-- **Rocket.Chat WebSocket (DDP)** — Real-time message subscription
-- **Docker Compose** — One-click Rocket.Chat + MongoDB deployment
-- **Vitest** — Unit testing
+| Document | Content |
+|----------|---------|
+| [Configuration Reference](docs/CONFIGURATION.en.md) | Full parameter tables, JSON example, manual editing, full reset |
+| [Architecture & Comparison](docs/ARCHITECTURE.en.md) | Full comparison table, architecture diagrams, tech stack |
 
 ## Contributing
 

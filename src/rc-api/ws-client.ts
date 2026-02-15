@@ -276,10 +276,25 @@ export class RocketChatWsClient {
     }
   }
 
+  /** 单次 RPC 调用的超时时间（30 秒） */
+  private static readonly CALL_TIMEOUT_MS = 30000;
+
   private async callMethod(method: string, params: unknown[]): Promise<unknown> {
     const id = this.nextId();
     return new Promise((resolve, reject) => {
-      this.pendingCalls.set(id, { resolve, reject });
+      // 超时兜底：防止 pendingCalls 内存泄漏
+      const timer = setTimeout(() => {
+        if (this.pendingCalls.has(id)) {
+          this.pendingCalls.delete(id);
+          reject(new Error(`DDP call "${method}" timed out after ${RocketChatWsClient.CALL_TIMEOUT_MS}ms`));
+        }
+      }, RocketChatWsClient.CALL_TIMEOUT_MS);
+
+      this.pendingCalls.set(id, {
+        resolve: (v: unknown) => { clearTimeout(timer); resolve(v); },
+        reject: (e: Error) => { clearTimeout(timer); reject(e); },
+      });
+
       this.sendRaw({ msg: "method", method, id, params });
     });
   }

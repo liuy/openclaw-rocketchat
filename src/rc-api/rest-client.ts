@@ -27,8 +27,12 @@ export class RocketChatRestClient {
     // 去掉末尾斜杠
     this.serverUrl = serverUrl.replace(/\/+$/, "");
 
-    // TLS 验证：install-rc.sh 通过 acme.sh 获取 Let's Encrypt 正式证书。
-    // 跳过 TLS 验证以兼容 localhost 自回环、用户自定义证书等场景。
+    // ⚠️  SECURITY: 禁用 TLS 证书验证
+    // 原因：同机部署时 serverUrl 为 https://127.0.0.1，使用 sslip.io 域名证书，
+    //       证书的 CN/SAN 不匹配 127.0.0.1 会导致连接失败。
+    //       分离部署虽有正式证书，但也可能使用自定义证书。
+    // 影响范围：仅影响此 Node.js 进程内的 HTTPS 请求。
+    // 替代方案：将来可为本地连接使用 --ca 选项或信任自签 CA。
     if (this.serverUrl.startsWith("https://")) {
       process.env.NODE_TLS_REJECT_UNAUTHORIZED = "0";
     }

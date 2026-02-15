@@ -10,6 +10,9 @@ import type { BotManager } from "./bot-manager.js";
 /** 长文本分块大小（Rocket.Chat 单条消息建议不超过 4000 字符） */
 const MAX_MESSAGE_LENGTH = 4000;
 
+/** processingMessages 集合的最大容量（防止内存泄漏） */
+const MAX_PROCESSING_SET_SIZE = 1000;
+
 /** Rocket.Chat 广播提及用户名：@here / @all / @everyone 不应触发机器人响应 */
 const BROADCAST_MENTION_USERNAMES = new Set(["here", "all", "everyone"]);
 
@@ -71,6 +74,13 @@ export class MessageHandler {
     // 消息去重：防止同一条消息被多个 bot 或重连后重复处理
     const msgKey = `${roomId}:${msg._id}`;
     if (this.processingMessages.has(msgKey)) return;
+
+    // 防止内存泄漏：集合过大时清空最旧的条目
+    if (this.processingMessages.size >= MAX_PROCESSING_SET_SIZE) {
+      const oldest = this.processingMessages.values().next().value;
+      if (oldest) this.processingMessages.delete(oldest);
+    }
+
     this.processingMessages.add(msgKey);
     // 处理完成后清理（60 秒超时兜底）
     const cleanup = () => this.processingMessages.delete(msgKey);
