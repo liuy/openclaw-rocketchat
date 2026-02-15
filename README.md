@@ -290,11 +290,17 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
 ╚══════════════════════════════════════════════════════════╝
 
   服务器地址: https://123-45-67-89.sslip.io
-  HTTPS:      Let's Encrypt 正式证书（自动续期）
+  HTTPS:      Let's Encrypt 正式证书（acme.sh 自动续期）
   域名:       123-45-67-89.sslip.io（由 sslip.io 免费提供，无需购买）
 
+  🔑 默认管理员账号：
+     用户名: admin
+     密码:   admin
+   （这是 Rocket.Chat 的内置管理员，运行 openclaw rocketchat setup 时会自动接管。
+    普通用户不需要知道这个账号，仅供服务器管理使用。）
+
   📌 接下来的步骤：
-     1️⃣  确保防火墙已放行端口 443
+     1️⃣  确保防火墙已放行端口 443 和 80
      2️⃣  回到你的 OpenClaw 机器，安装插件并配置：
          openclaw plugins install openclaw-rocketchat
          openclaw rocketchat setup
@@ -355,7 +361,11 @@ Rocket.Chat 服务器地址
      3. 用户名: zhangsan
      4. 密码: 你设置的密码
 
-  🔥 重要：请确保服务器防火墙已放行端口 443
+  💡 关于 App 中可能看到的 admin 或 rc-admin 用户：
+     这是 Rocket.Chat 的内部管理员账号，由 setup 自动创建/接管，
+     用于管理机器人和用户。你无需理会，也不要删除它。
+
+  🔥 重要：请确保服务器防火墙已放行端口 443 和 80
 
   💡 下一步: 运行以下命令添加第一个机器人
      openclaw rocketchat add-bot
@@ -392,7 +402,9 @@ openclaw rocketchat add-bot
      绑定到 Agent: main
      DM 私聊已就绪
 
-  📱 打开 Rocket.Chat App 即可看到 molty，直接发消息开聊！
+  📱 打开 Rocket.Chat App 和机器人聊天：
+     如果会话列表中没有看到 小龙虾，点左上角「搜索」图标，
+     输入「molty」即可找到并开始私聊。
 ```
 
 **输入机器人名字、选一个 Agent 编号，就完事了。**
@@ -405,7 +417,7 @@ openclaw rocketchat add-bot
    - **电脑**：[官网下载桌面客户端](https://www.rocket.chat/download-apps)，或直接浏览器访问服务器地址
 2. 打开 App，点击 **"Add Server"**，输入 install-rc.sh 输出的服务器地址（如 `https://123-45-67-89.sslip.io`）
 3. 用第二步设置的用户名和密码登录
-4. 找到第三步创建的机器人，发消息，开聊！
+4. 如果会话列表中没看到机器人，点左上角「搜索」图标，输入机器人用户名即可找到并开聊！
 
 **到这里就全部完成了。总共 3 条命令 + 手机下载 App。**
 

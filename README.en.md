@@ -292,8 +292,14 @@ You'll see:
   Address: https://123-45-67-89.sslip.io
   HTTPS:   ✅ Let's Encrypt certificate (trusted, zero warnings)
 
+  🔑 Default admin credentials:
+     Username: admin
+     Password: admin
+   (This is Rocket.Chat's built-in admin. It will be automatically managed when you run openclaw rocketchat setup.
+    Regular users don't need this account — it's for server administration only.)
+
   📌 Next steps:
-     1️⃣  Make sure firewall allows port 443
+     1️⃣  Make sure firewall allows ports 443 and 80
      2️⃣  On your OpenClaw machine, install plugin and configure:
          openclaw plugins install openclaw-rocketchat
          openclaw rocketchat setup
@@ -355,7 +361,11 @@ Confirm:  ********
      3. Username: zhangsan
      4. Password: the one you just set
 
-  🔥 Important: Make sure your server firewall allows port 443
+  💡 About the admin or rc-admin user you may see in the App:
+     This is Rocket.Chat's internal admin account, auto-created by setup,
+     used to manage bots and users. You can ignore it — don't delete it.
+
+  🔥 Important: Make sure your server firewall allows ports 443 and 80
 
   💡 Next: openclaw rocketchat add-bot
 ```
@@ -392,7 +402,9 @@ Bind to which Agent?
      Bound to Agent: main
      DM ready
 
-  📱 Open Rocket.Chat App to see molty — send a message to start!
+  📱 Open Rocket.Chat App to chat with the bot:
+     If you don't see 小龙虾 in your conversation list, tap the search icon
+     in the top-left corner and type "molty" to find and start a DM.
 ```
 
 **Type a bot name, pick an Agent number, done.**
@@ -405,7 +417,7 @@ Bind to which Agent?
    - **Desktop**: [Download desktop client](https://www.rocket.chat/download-apps), or open `https://YOUR-IP.sslip.io` in your browser
 2. Open the app, tap **"Add Server"**, enter: `https://YOUR-IP.sslip.io`
 3. Login with the credentials from Step 1
-4. Find the bot, send a message, start chatting!
+4. If you don't see the bot in your conversation list, tap the search icon in the top-left corner, type the bot's username to find and start chatting!
 
 **That's it. 3 commands + download an app. You're done.**
 
