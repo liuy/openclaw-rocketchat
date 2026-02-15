@@ -15,6 +15,7 @@ import { removeUserCommand } from "./cli/remove-user.js";
 import { inviteCommand } from "./cli/invite.js";
 import { statusCommand } from "./cli/status.js";
 import { uninstallCommand } from "./cli/uninstall.js";
+import { upgradeCommand } from "./cli/upgrade.js";
 
 /** OpenClaw 配置文件路径的缓存 */
 let configFilePath = "";
@@ -305,6 +306,12 @@ export default function register(api: any): void {
           await statusCommand(getConfigPath());
         });
 
+      rc.command("upgrade")
+        .description("一键升级插件（自动备份配置、安装新版、恢复配置）")
+        .action(async () => {
+          await upgradeCommand(getConfigPath());
+        });
+
       rc.command("uninstall")
         .description("卸载 Rocket.Chat（停止容器、清理配置）")
         .action(async () => {
@@ -321,6 +328,7 @@ export default function register(api: any): void {
         "rocketchat remove-user",
         "rocketchat invite",
         "rocketchat status",
+        "rocketchat upgrade",
         "rocketchat uninstall",
       ],
     },

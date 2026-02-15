@@ -618,6 +618,18 @@ openclaw rocketchat status
 </details>
 
 <details>
+<summary><b>升级插件</b></summary>
+
+```bash
+openclaw rocketchat upgrade
+```
+
+一键完成：显示版本对比 → 备份配置 → 停 Gateway → 删旧版 → 安装新版 → 恢复配置。
+全程自动，**不会丢失机器人、群组、绑定等任何配置**。
+
+</details>
+
+<details>
 <summary><b>卸载</b></summary>
 
 ```bash
@@ -637,6 +649,7 @@ openclaw rocketchat uninstall
 | `openclaw rocketchat remove-user` | 删除手机登录用户 |
 | `openclaw rocketchat invite` | 群组成员管理（邀请/移除/设管理员） |
 | `openclaw rocketchat status` | 查看运行状态（含 Agent 健康检查） |
+| `openclaw rocketchat upgrade` | **一键升级插件（自动备份/恢复配置）** |
 | `openclaw rocketchat uninstall` | 卸载 Rocket.Chat |
 
 所有命令都是**交互式**的——不需要记参数，按提示输入即可。
@@ -693,7 +706,18 @@ openclaw rocketchat add-bot
 </details>
 
 <details>
-<summary><b>想重新安装插件/彻底重来怎么办？</b></summary>
+<summary><b>如何升级插件？</b></summary>
+
+```bash
+openclaw rocketchat upgrade
+```
+
+一条命令搞定。自动备份配置 → 安装新版 → 恢复配置，**不会丢失任何机器人、群组、绑定配置**。
+
+</details>
+
+<details>
+<summary><b>想彻底重来（从头配置）怎么办？</b></summary>
 
 > 完整重置步骤也可参阅 [docs/CONFIGURATION.md — 完全重置](docs/CONFIGURATION.md#完全重置-rocketchat-配置)
 

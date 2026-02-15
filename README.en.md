@@ -618,6 +618,18 @@ Private Channels
 </details>
 
 <details>
+<summary><b>Upgrade Plugin</b></summary>
+
+```bash
+openclaw rocketchat upgrade
+```
+
+One command does it all: shows version comparison → backs up config → stops Gateway → removes old version → installs new version → restores config.
+Fully automatic — **no bot, group, or binding config is lost**.
+
+</details>
+
+<details>
 <summary><b>Uninstall</b></summary>
 
 ```bash
@@ -637,6 +649,7 @@ openclaw rocketchat uninstall
 | `openclaw rocketchat remove-user` | Remove phone login user |
 | `openclaw rocketchat invite` | Manage group members |
 | `openclaw rocketchat status` | View running status (with Agent health check) |
+| `openclaw rocketchat upgrade` | **One-click upgrade (auto backup/restore config)** |
 | `openclaw rocketchat uninstall` | Uninstall Rocket.Chat |
 
 All commands are **interactive** — no flags to memorize, just follow the prompts.
@@ -693,7 +706,18 @@ If you know the admin username/password, re-run setup and choose "Use existing a
 </details>
 
 <details>
-<summary><b>How to reinstall the plugin / start completely fresh?</b></summary>
+<summary><b>How to upgrade the plugin?</b></summary>
+
+```bash
+openclaw rocketchat upgrade
+```
+
+One command does it all. Automatically backs up config → installs new version → restores config. **No bot, group, or binding config is lost.**
+
+</details>
+
+<details>
+<summary><b>How to start completely fresh (reconfigure from scratch)?</b></summary>
 
 > Full reset steps also at [docs/CONFIGURATION.en.md — Full Reset](docs/CONFIGURATION.en.md#full-reset)
 
