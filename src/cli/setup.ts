@@ -5,7 +5,7 @@
 // Docker 部署已独立到 install-rc.sh，本命令只负责"连接和配置"
 // ============================================================
 
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { homedir } from "node:os";
 import { RocketChatRestClient } from "../rc-api/rest-client.js";
@@ -275,6 +275,10 @@ export async function setupCommand(configPath: string): Promise<void> {
     await configWriter.readConfig();
     configWriter.setRocketchatChannel(cleanUrl, port);
     await configWriter.save();
+
+    // 添加 "rocketchat" 插件别名条目（防止框架 doctor 幽灵警告）
+    ensurePluginAlias(configPath);
+
     success("配置已写入");
   } catch (err) {
     error(`配置写入失败: ${(err as Error).message}`);
@@ -632,4 +636,42 @@ function printFinishBanner(
   info("💡 下一步: 运行以下命令添加第一个机器人");
   info("   openclaw rocketchat add-bot");
   console.log("");
+}
+
+/**
+ * 确保 plugins.entries 和 plugins.installs 中同时存在
+ * "openclaw-rocketchat" 和 "rocketchat" 两个条目。
+ *
+ * 原因：框架 doctor 根据 channels.rocketchat 查找 plugins.entries.rocketchat，
+ * 但 npm 安装只创建 plugins.entries.openclaw-rocketchat。
+ * 缺少 "rocketchat" 条目会导致 doctor 反复提示，且 doctor --fix 因验证失败而报错。
+ */
+function ensurePluginAlias(configPath: string): void {
+  try {
+    const content = readFileSync(configPath, "utf-8");
+    const config = JSON.parse(content);
+
+    let changed = false;
+
+    config.plugins = config.plugins || {};
+    config.plugins.entries = config.plugins.entries || {};
+    config.plugins.installs = config.plugins.installs || {};
+
+    if (!config.plugins.entries["rocketchat"]) {
+      config.plugins.entries["rocketchat"] = { enabled: true };
+      changed = true;
+    }
+
+    const realInstall = config.plugins.installs["openclaw-rocketchat"];
+    if (realInstall && !config.plugins.installs["rocketchat"]) {
+      config.plugins.installs["rocketchat"] = { ...realInstall };
+      changed = true;
+    }
+
+    if (changed) {
+      writeFileSync(configPath, JSON.stringify(config, null, 2) + "\n", "utf-8");
+    }
+  } catch {
+    // 不阻断主流程
+  }
 }

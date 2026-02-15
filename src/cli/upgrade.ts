@@ -245,9 +245,10 @@ export async function upgradeCommand(configPath: string): Promise<void> {
       success(`已恢复 ${savedBindings.length} 条 binding`);
     }
 
-    // 清理幽灵 entries（doctor 可能又加了）
-    const entries = config.plugins?.entries || {};
-    delete entries["rocketchat"];
+    // 添加 "rocketchat" 别名条目
+    // 框架 doctor 会根据 channels.rocketchat 查找 plugins.entries.rocketchat，
+    // 如果不存在就反复提示。添加别名 + 匹配的 installs 记录，让 doctor 和验证都通过。
+    ensurePluginAlias(config);
 
     writeJson(configPath, config);
     success("配置恢复完成");
@@ -279,4 +280,29 @@ export async function upgradeCommand(configPath: string): Promise<void> {
   info("  # 或前台运行查看日志：");
   info("  openclaw gateway run --verbose");
   console.log("");
+}
+
+/**
+ * 确保 plugins.entries 和 plugins.installs 中同时存在
+ * "openclaw-rocketchat" 和 "rocketchat" 两个条目。
+ *
+ * 原因：框架 doctor 根据 channels.rocketchat 查找 plugins.entries.rocketchat，
+ * 但 npm 安装只创建 plugins.entries.openclaw-rocketchat。
+ * 缺少 "rocketchat" 条目会导致 doctor 反复提示，且 doctor --fix 因验证失败而报错。
+ */
+function ensurePluginAlias(config: Record<string, any>): void {
+  config.plugins = config.plugins || {};
+  config.plugins.entries = config.plugins.entries || {};
+  config.plugins.installs = config.plugins.installs || {};
+
+  // entries 别名
+  if (!config.plugins.entries["rocketchat"]) {
+    config.plugins.entries["rocketchat"] = { enabled: true };
+  }
+
+  // installs 别名（指向同一个安装路径，让验证通过）
+  const realInstall = config.plugins.installs["openclaw-rocketchat"];
+  if (realInstall && !config.plugins.installs["rocketchat"]) {
+    config.plugins.installs["rocketchat"] = { ...realInstall };
+  }
 }
