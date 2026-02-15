@@ -352,6 +352,22 @@ CERT_ISSUED=false
 step "申请 Let's Encrypt 证书..."
 info "策略 1: HTTP-01 验证（standalone 模式，使用 80 端口）"
 
+# 辅助函数：检查 acme.sh 是否已有此域名的有效证书
+check_existing_cert() {
+  local domain="$1"
+  local cert_dir
+  # acme.sh 证书目录可能是 domain 或 domain_ecc
+  for cert_dir in "$HOME/.acme.sh/${domain}" "$HOME/.acme.sh/${domain}_ecc"; do
+    if [ -f "${cert_dir}/fullchain.cer" ] && [ -f "${cert_dir}/${domain}.key" ]; then
+      # 检查证书是否未过期
+      if openssl x509 -checkend 86400 -noout -in "${cert_dir}/fullchain.cer" 2>/dev/null; then
+        return 0  # 有效证书存在
+      fi
+    fi
+  done
+  return 1  # 没有有效证书
+}
+
 if "$ACME_SH" --issue --standalone -d "${RC_DOMAIN}" \
   --server letsencrypt \
   --keylength 2048 \
@@ -360,6 +376,10 @@ if "$ACME_SH" --issue --standalone -d "${RC_DOMAIN}" \
   --post-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} start nginx 2>/dev/null || true"; then
   CERT_ISSUED=true
   success "证书获取成功！（HTTP-01 验证）"
+elif check_existing_cert "${RC_DOMAIN}"; then
+  # acme.sh 返回非零是因为证书已存在且未到期，无需续期
+  CERT_ISSUED=true
+  success "证书已存在且有效（未到期，无需续期）"
 else
   warn "HTTP-01 验证失败（80 端口可能不可用），自动切换后备方案..."
   echo ""
@@ -374,6 +394,9 @@ else
     --post-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} start nginx 2>/dev/null || true"; then
     CERT_ISSUED=true
     success "证书获取成功！（TLS-ALPN-01 验证）"
+  elif check_existing_cert "${RC_DOMAIN}"; then
+    CERT_ISSUED=true
+    success "证书已存在且有效（未到期，无需续期）"
   fi
 fi
 
