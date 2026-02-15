@@ -50,7 +50,7 @@ export async function addBotCommand(configPath: string): Promise<void> {
   // ----------------------------------------------------------
   // 2. 读取 Agent 列表
   // ----------------------------------------------------------
-  const agents = configWriter.getAgentsList();
+  const agents = await configWriter.getAgentsList();
   if (agents.length === 0) {
     error("没有找到任何 Agent！");
     info("请先创建 Agent: openclaw agents add <名称>");

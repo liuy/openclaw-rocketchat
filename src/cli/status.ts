@@ -80,7 +80,7 @@ export async function statusCommand(configPath: string): Promise<void> {
   const bindings = configWriter.getRocketchatBindings();
 
   const botEntries = Object.entries(accounts);
-  const agentsList = configWriter.getAgentsList();
+  const agentsList = await configWriter.getAgentsList();
 
   if (botEntries.length > 0) {
     info("机器人                        Agent           状态");

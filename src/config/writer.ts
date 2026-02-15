@@ -3,8 +3,10 @@
 // 安全读写 openclaw.json，只写入 channels.rocketchat 和 bindings
 // ============================================================
 
-import { readFile, writeFile } from "node:fs/promises";
+import { readFile, writeFile, readdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { join } from "node:path";
+import { homedir } from "node:os";
 import JSON5 from "json5";
 import type {
   RocketchatChannelConfig,
@@ -55,9 +57,31 @@ export class ConfigWriter {
     return this.config;
   }
 
-  /** 获取已有 Agent 列表（只读） */
-  getAgentsList(): OpenClawAgent[] {
-    return this.config.agents?.list || [];
+  /** 获取已有 Agent 列表
+   *  优先从配置文件读取，如果没有则扫描 ~/.openclaw/agents/ 目录
+   */
+  async getAgentsList(): Promise<OpenClawAgent[]> {
+    // 方式 1：从配置文件中读取（旧版 OpenClaw）
+    const fromConfig = this.config.agents?.list;
+    if (fromConfig && fromConfig.length > 0) {
+      return fromConfig;
+    }
+
+    // 方式 2：扫描 ~/.openclaw/agents/ 目录（OpenClaw 2026+）
+    const agentsDir = join(homedir(), ".openclaw", "agents");
+    if (!existsSync(agentsDir)) return [];
+
+    try {
+      const entries = await readdir(agentsDir, { withFileTypes: true });
+      return entries
+        .filter((e) => e.isDirectory())
+        .map((e) => ({
+          id: e.name,
+          default: e.name === "main",
+        }));
+    } catch {
+      return [];
+    }
   }
 
   /** 获取 Rocket.Chat 频道配置 */
