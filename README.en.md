@@ -909,26 +909,34 @@ If you know the admin username/password, re-run setup and choose "Use existing a
 <summary><b>How to reinstall the plugin / start over?</b></summary>
 
 ```bash
-# 1. Remove old plugin
-rm -rf ~/.openclaw/extensions/openclaw-rocketchat
+# 1. Stop Gateway
+openclaw gateway stop
 
-# 2. Clean residual config entries
+# 2. Remove old plugin and credentials
+rm -rf ~/.openclaw/extensions/openclaw-rocketchat
+rm -rf ~/.openclaw/credentials/rocketchat*
+
+# 3. Clean all Rocket.Chat related config entries
 python3 -c "
 import json
-with open('$HOME/.openclaw/openclaw.json') as f:
-    cfg = json.load(f)
-for key in ['entries', 'installs']:
-    if 'plugins' in cfg and key in cfg['plugins'] and 'openclaw-rocketchat' in cfg['plugins'][key]:
-        del cfg['plugins'][key]['openclaw-rocketchat']
-with open('$HOME/.openclaw/openclaw.json', 'w') as f:
-    json.dump(cfg, f, indent=2, ensure_ascii=False)
-    f.write('\n')
+p = '$HOME/.openclaw/openclaw.json'
+with open(p) as f:
+    c = json.load(f)
+c.get('channels', {}).pop('rocketchat', None)
+c['bindings'] = [b for b in c.get('bindings', []) if b.get('match', {}).get('channel') != 'rocketchat']
+c.get('plugins', {}).get('entries', {}).pop('openclaw-rocketchat', None)
+c.get('plugins', {}).get('entries', {}).pop('rocketchat', None)
+c.get('plugins', {}).get('installs', {}).pop('openclaw-rocketchat', None)
+with open(p, 'w') as f:
+    json.dump(c, f, indent=2, ensure_ascii=False)
+print('Done')
 "
 
-# 3. Reinstall
-npm cache clean --force
+# 4. Reinstall and reconfigure
 openclaw plugins install openclaw-rocketchat
 openclaw rocketchat setup
+openclaw rocketchat add-bot
+openclaw gateway start
 ```
 
 </details>
@@ -937,34 +945,38 @@ openclaw rocketchat setup
 <summary><b>How to completely start fresh (including Rocket.Chat reset)?</b></summary>
 
 ```bash
-# 1. Stop and remove Rocket.Chat containers and data
+# 1. Stop Gateway
+openclaw gateway stop
+
+# 2. Stop and remove Rocket.Chat containers and data
 cd ~/rocketchat && docker compose down -v
 
-# 2. Remove plugin and credentials
+# 3. Remove plugin and credentials
 rm -rf ~/.openclaw/extensions/openclaw-rocketchat
-rm -rf ~/.openclaw/credentials/rocketchat
+rm -rf ~/.openclaw/credentials/rocketchat*
 
-# 3. Clean config file
+# 4. Clean all Rocket.Chat related config entries
 python3 -c "
 import json
-with open('$HOME/.openclaw/openclaw.json') as f:
-    cfg = json.load(f)
-for key in ['entries', 'installs']:
-    if 'plugins' in cfg and key in cfg['plugins'] and 'openclaw-rocketchat' in cfg['plugins'][key]:
-        del cfg['plugins'][key]['openclaw-rocketchat']
-if 'channels' in cfg and 'rocketchat' in cfg['channels']:
-    del cfg['channels']['rocketchat']
-cfg['bindings'] = [b for b in cfg.get('bindings', []) if b.get('match', {}).get('channel') != 'rocketchat']
-with open('$HOME/.openclaw/openclaw.json', 'w') as f:
-    json.dump(cfg, f, indent=2, ensure_ascii=False)
-    f.write('\n')
+p = '$HOME/.openclaw/openclaw.json'
+with open(p) as f:
+    c = json.load(f)
+c.get('channels', {}).pop('rocketchat', None)
+c['bindings'] = [b for b in c.get('bindings', []) if b.get('match', {}).get('channel') != 'rocketchat']
+c.get('plugins', {}).get('entries', {}).pop('openclaw-rocketchat', None)
+c.get('plugins', {}).get('entries', {}).pop('rocketchat', None)
+c.get('plugins', {}).get('installs', {}).pop('openclaw-rocketchat', None)
+with open(p, 'w') as f:
+    json.dump(c, f, indent=2, ensure_ascii=False)
+print('Done')
 "
 
-# 4. Start fresh
+# 5. Start fresh
 curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/master/install-rc.sh | bash
 openclaw plugins install openclaw-rocketchat
 openclaw rocketchat setup
 openclaw rocketchat add-bot
+openclaw gateway start
 ```
 
 </details>
