@@ -49,6 +49,81 @@ function getConfigPath(): string {
 }
 
 /**
+ * 出站消息辅助函数
+ * 解析 target（可能是 roomId、accountId:roomId 等格式），发送到 RC
+ */
+async function sendOutbound(
+  text: string,
+  accountId: string | null | undefined,
+  to: string,
+  logger: { info: (msg: string) => void; error: (msg: string) => void },
+): Promise<{ ok: boolean }> {
+  if (!channelService) {
+    logger.error("频道服务未启动，无法发送出站消息");
+    return { ok: false };
+  }
+  const handler = channelService.getMessageHandler();
+  if (!handler) {
+    logger.error("消息处理器未初始化");
+    return { ok: false };
+  }
+
+  // 解析 target → (botUsername, roomId)
+  let botUsername = accountId || "";
+  let roomId = to || "";
+
+  // 格式 1: "accountId:roomId" → 拆分
+  if (!botUsername && roomId.includes(":")) {
+    const colonIdx = roomId.indexOf(":");
+    const prefix = roomId.slice(0, colonIdx);
+    const suffix = roomId.slice(colonIdx + 1);
+    // 如果后缀是 hex id，则前缀是 accountId
+    if (/^[a-f0-9]{17,24}$/i.test(suffix)) {
+      botUsername = prefix;
+      roomId = suffix;
+    }
+  }
+
+  // 格式 2: "rocketchat:dm:botUsername" 或 "rocketchat:group:roomId" → 提取
+  if (roomId.startsWith("rocketchat:")) {
+    const parts = roomId.split(":");
+    if (parts[1] === "dm" && parts[2]) {
+      // rocketchat:dm:botUsername → 需要查找对应的 DM roomId
+      // 这种情况下 botUsername 可能是 parts[2]
+      if (!botUsername) botUsername = parts[2];
+    } else if (parts[1] === "group" && parts[2]) {
+      roomId = parts[2];
+    }
+  }
+
+  // 如果没有 botUsername，使用第一个可用的机器人
+  if (!botUsername) {
+    const botManager = channelService.getBotManager();
+    const bots = botManager?.getConnectedBots?.() || [];
+    if (bots.length > 0) {
+      botUsername = bots[0];
+    }
+  }
+
+  if (!botUsername || !roomId) {
+    logger.error(`出站消息缺少 accountId(${botUsername}) 或 target(${roomId})`);
+    return { ok: false };
+  }
+
+  if (!text.trim()) {
+    return { ok: true }; // 空消息不需要发送
+  }
+
+  try {
+    await handler.handleOutbound(text, botUsername, roomId);
+    return { ok: true };
+  } catch (err) {
+    logger.error(`出站发送失败: ${(err as Error).message}`);
+    return { ok: false };
+  }
+}
+
+/**
  * 插件入口：注册到 OpenClaw
  */
 export default function register(api: any): void {
@@ -108,7 +183,7 @@ export default function register(api: any): void {
            */
           looksLikeId: (raw: string, _normalized: string): boolean => {
             const trimmed = raw.trim();
-            // MongoDB ObjectId: 24-char hex string
+            // MongoDB ObjectId: 17-24 char hex string
             if (/^[a-f0-9]{17,24}$/i.test(trimmed)) {
               return true;
             }
@@ -120,48 +195,57 @@ export default function register(api: any): void {
             if (/^[@#]/.test(trimmed)) {
               return true;
             }
+            // accountId:roomId 格式（Agent 主动发送时可能使用此格式）
+            if (/^[^:]+:[a-f0-9]{17,24}$/i.test(trimmed)) {
+              return true;
+            }
+            // rocketchat:dm:xxx 或 rocketchat:group:xxx 等完整路径
+            if (/^rocketchat:/i.test(trimmed)) {
+              return true;
+            }
             return false;
           },
         },
       },
       outbound: {
-        deliveryMode: "gateway" as const,
+        deliveryMode: "direct" as const,
+        textChunkLimit: 4000,
         /**
-         * Agent 回复 → 发送到 Rocket.Chat
+         * Agent → 发送文本到 Rocket.Chat
+         * 接口遵循 ChannelOutboundContext
          */
-        sendText: async (params: {
+        sendText: async (ctx: {
+          cfg: any;
+          to: string;
           text: string;
-          accountId?: string;
-          target?: string;
-        }): Promise<{ ok: boolean }> => {
-          if (!channelService) {
-            logger.error("频道服务未启动");
-            return { ok: false };
+          accountId?: string | null;
+          replyToId?: string | null;
+          threadId?: string | number | null;
+          silent?: boolean;
+        }): Promise<{ channel: string; ok: boolean }> => {
+          const result = await sendOutbound(ctx.text, ctx.accountId, ctx.to, logger);
+          return { channel: "rocketchat", ...result };
+        },
+        /**
+         * Agent → 发送媒体到 Rocket.Chat（降级为文本链接）
+         */
+        sendMedia: async (ctx: {
+          cfg: any;
+          to: string;
+          text: string;
+          mediaUrl?: string;
+          accountId?: string | null;
+          replyToId?: string | null;
+          threadId?: string | number | null;
+          silent?: boolean;
+        }): Promise<{ channel: string; ok: boolean }> => {
+          // 如果有媒体 URL，以文本链接形式发送
+          let text = ctx.text || "";
+          if (ctx.mediaUrl) {
+            text = text ? `${text}\n📎 ${ctx.mediaUrl}` : `📎 ${ctx.mediaUrl}`;
           }
-
-          const handler = channelService.getMessageHandler();
-          if (!handler) {
-            logger.error("消息处理器未初始化");
-            return { ok: false };
-          }
-
-          const botUsername = params.accountId || "";
-          const roomId = params.target || "";
-
-          if (!botUsername || !roomId) {
-            logger.error("缺少 accountId 或 target");
-            return { ok: false };
-          }
-
-          try {
-            await handler.handleOutbound(params.text, botUsername, roomId);
-            return { ok: true };
-          } catch (err) {
-            logger.error(
-              `发送失败: ${(err as Error).message}`,
-            );
-            return { ok: false };
-          }
+          const result = await sendOutbound(text, ctx.accountId, ctx.to, logger);
+          return { channel: "rocketchat", ...result };
         },
       },
     },
