@@ -364,13 +364,28 @@ export class RocketChatRestClient {
   // 服务器
   // ----------------------------------------------------------
 
-  /** 获取服务器信息（健康检查） */
+  /** 获取服务器信息（健康检查，兼容 RC 6.x ~ 8.x） */
   async serverInfo(): Promise<ServerInfo> {
-    const res = await this.request<{ info: { version: string }; success: boolean }>(
-      "GET",
-      "/info",
-    );
-    return { version: res.info?.version || "unknown", success: true };
+    // RC 8.x 移除了 /api/v1/info，改用 /api/v1/login 做连通性测试
+    // 发送空登录请求，只要返回 JSON（即使是 401）就说明服务器正常
+    try {
+      const res = await this.request<{ info: { version: string }; success: boolean }>(
+        "GET",
+        "/info",
+      );
+      return { version: res.info?.version || "unknown", success: true };
+    } catch (err) {
+      // /api/v1/info 可能 404（RC 8.x），尝试通过登录接口探测
+      const url = `${this.serverUrl}/api/v1/login`;
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user: "", password: "" }),
+      });
+      // 只要服务器响应 JSON 就算连通
+      await response.json();
+      return { version: "unknown", success: true };
+    }
   }
 
   /** 获取服务器版本号（连通性测试用） */

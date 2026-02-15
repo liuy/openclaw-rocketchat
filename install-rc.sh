@@ -298,10 +298,14 @@ WAITED=0
 INTERVAL=5
 
 while [ $WAITED -lt $MAX_WAIT ]; do
-  # 尝试访问 /api/v1/info
-  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" "http://127.0.0.1:${RC_PORT}/api/v1/info" 2>/dev/null || echo "000")
+  # 尝试访问 API（兼容 RC 6.x ~ 8.x）
+  # RC 8.x 移除了 /api/v1/info，改用 POST /api/v1/login 探测
+  HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" \
+    -X POST "http://127.0.0.1:${RC_PORT}/api/v1/login" \
+    -H "Content-Type: application/json" \
+    -d '{"user":"","password":""}' 2>/dev/null || echo "000")
   
-  if [ "$HTTP_CODE" = "200" ]; then
+  if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "401" ] || [ "$HTTP_CODE" = "403" ]; then
     success "Rocket.Chat 已就绪！"
     break
   fi
@@ -315,7 +319,7 @@ done
 
 if [ $WAITED -ge $MAX_WAIT ]; then
   warn "等待超时，Rocket.Chat 可能还在启动中。"
-  info "可以手动检查: curl http://127.0.0.1:${RC_PORT}/api/v1/info"
+  info "可以手动检查: curl -s http://127.0.0.1:${RC_PORT}/ | head -1"
   info "或查看日志: cd ${INSTALL_DIR} && ${COMPOSE_CMD} logs -f rocketchat"
 fi
 
