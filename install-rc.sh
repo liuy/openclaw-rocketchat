@@ -332,8 +332,10 @@ if [[ ! -f "$ACME_SH" ]]; then
 fi
 success "acme.sh 已就绪"
 
-# 清除可能残留的无效邮箱配置，用无邮箱模式注册 Let's Encrypt 账号
-"$ACME_SH" --register-account --server letsencrypt --accountemail "" 2>/dev/null || true
+# 强制清除可能残留的无效邮箱配置（之前版本使用了 .local 伪域名导致注册失败）
+find "$HOME/.acme.sh" -name "account.conf" -exec sed -i 's/^ACCOUNT_EMAIL=.*/ACCOUNT_EMAIL=/' {} \; 2>/dev/null || true
+# 删除旧的账号密钥，强制重新注册
+rm -rf "$HOME/.acme.sh/ca/acme-v02.api.letsencrypt.org" 2>/dev/null || true
 
 # 5c. 申请 Let's Encrypt 证书
 #     策略 1: HTTP-01（standalone，80 端口）— 最通用
@@ -346,6 +348,7 @@ info "策略 1: HTTP-01 验证（standalone 模式，使用 80 端口）"
 if "$ACME_SH" --issue --standalone -d "${RC_DOMAIN}" \
   --server letsencrypt \
   --keylength 2048 \
+  --accountemail "" \
   --pre-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} stop nginx 2>/dev/null || true" \
   --post-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} start nginx 2>/dev/null || true"; then
   CERT_ISSUED=true
@@ -359,6 +362,7 @@ else
   if "$ACME_SH" --issue --alpn -d "${RC_DOMAIN}" \
     --server letsencrypt \
     --keylength 2048 \
+    --accountemail "" \
     --pre-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} stop nginx 2>/dev/null || true" \
     --post-hook "cd ${INSTALL_DIR} && ${COMPOSE_CMD} start nginx 2>/dev/null || true"; then
     CERT_ISSUED=true
