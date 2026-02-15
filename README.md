@@ -19,6 +19,8 @@
 
 </div>
 
+> **📖 文档导航：** [快速上手（本页）](#快速上手三步走) · [配置参数](docs/CONFIGURATION.md) · [架构与对比](docs/ARCHITECTURE.md) · [安全与凭据](docs/SECURITY.md)
+
 ---
 
 ## 痛点
@@ -214,7 +216,7 @@ Rocket.Chat 官方客户端下载：[rocket.chat/download-apps](https://www.rock
 - **不绑定任何特定服务商**——不喜欢了可以随时迁移数据（MongoDB 标准格式导出）
 - 你用的是标准的 Rocket.Chat 服务器，未来还可以接入更多功能（视频会话、文件共享、Webhook 集成等）
 
-### 技术特性（v0.7.0）
+### 技术特性（v0.7.1）
 
 | 特性 | 说明 |
 |------|------|
@@ -226,6 +228,8 @@ Rocket.Chat 官方客户端下载：[rocket.chat/download-apps](https://www.rock
 | @提及状态 | 正确传递 `WasMentioned` 字段，与官方频道行为一致 |
 | authToken 兼容 | 自动兼容旧版凭据格式，升级无需重新添加机器人 |
 | 一键升级 | `openclaw rocketchat upgrade` 自动备份配置、安装新版、恢复配置 |
+| 安全加固 | 安装脚本自动生成强随机管理员密码，消除 `admin/admin` 弱口令风险 |
+| 安装信息持久化 | 安装信息保存到 `.rc-info`，setup 自动读取，免手动输入 |
 
 ## 和其他方案的对比
 
@@ -300,17 +304,20 @@ curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/mas
   HTTPS:      Let's Encrypt 正式证书（acme.sh 自动续期）
   域名:       123-45-67-89.sslip.io（由 sslip.io 免费提供，无需购买）
 
-  🔑 默认管理员账号：
+  🔑 管理员账号（已自动生成强密码）：
      用户名: admin
-     密码:   admin
-   （这是 Rocket.Chat 的内置管理员，运行 openclaw rocketchat setup 时会自动接管。
+     密码:   Kx8mVp2dRfT7nQwL3s9A
+   （已保存到 ~/rocketchat/.rc-info，setup 时会自动读取。
     普通用户不需要知道这个账号，仅供服务器管理使用。）
+
+  安装信息已保存到: ~/rocketchat/.rc-info
 
   📌 接下来的步骤：
      1️⃣  确保防火墙已放行端口 443 和 80
-     2️⃣  回到你的 OpenClaw 机器，安装插件并配置：
+     2️⃣  安装插件并配置：
          openclaw plugins install openclaw-rocketchat
          openclaw rocketchat setup
+         💡 如果在同一台机器上，setup 会自动读取安装信息，无需手动输入！
      3️⃣  添加 AI 机器人：
          openclaw rocketchat add-bot
 ```
@@ -331,22 +338,21 @@ openclaw rocketchat setup
 ```
 === Rocket.Chat 配置向导 ===
 
-Rocket.Chat 服务器地址
-  （本机部署填 https://127.0.0.1，远程填 https://公网IP）
-  [默认 https://127.0.0.1]: https://123-45-67-89.sslip.io
+  ✅ 检测到本机 Rocket.Chat 安装信息
+    服务器地址: https://123-45-67-89.sslip.io
+    域名: 123-45-67-89.sslip.io
+    管理员: admin
 
+  使用检测到的信息自动配置？（推荐）(Y/n): Y
+
+  使用检测到的服务器地址: https://123-45-67-89.sslip.io
   ⏳ 测试连接 https://123-45-67-89.sslip.io ...
   ✅ 连接成功！Rocket.Chat 版本: 8.1.0
 
-管理员账号
-  1) 自动创建新管理员（推荐，适用于新装的 Rocket.Chat）
-  2) 使用已有管理员账号
-请选择: 1
-
   ⏳ 创建管理员（内部使用，你不需要记住）...
+  已将默认管理员密码修改为强随机密码（安全）
   已自动关闭公开注册（安全）
-  已禁用邮箱二次验证
-  ✅ 管理员已创建
+  ✅ 管理员已就绪
 
 创建你的手机登录账号
 用户名: zhangsan
@@ -851,6 +857,7 @@ App 在前台时走 WebSocket，消息实时送达，零延迟。App 在后台�
 |------|------|
 | [配置参数详解](docs/CONFIGURATION.md) | 完整参数表、JSON 示例、手动修改、完全重置 |
 | [架构与对比](docs/ARCHITECTURE.md) | 完整对比表、架构图、技术栈 |
+| [安全与凭据](docs/SECURITY.md) | 密码安全策略、凭据存储架构、备份恢复机制、文件权限 |
 
 ## 贡献
 

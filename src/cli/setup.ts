@@ -17,6 +17,9 @@ import {
   generatePassword,
   generateAdminUsername,
   isSetupDone,
+  backupAdminToRcDir,
+  backupUserToRcDir,
+  restoreUserFromRcDir,
 } from "../config/credentials.js";
 import {
   ask,
@@ -474,7 +477,7 @@ async function createAdminAccount(
   }
 }
 
-/** 创建个人登录账号 */
+/** 创建个人登录账号（支持冲突恢复） */
 async function createPersonalAccount(
   rc: RocketChatRestClient,
   username: string,
@@ -493,10 +496,62 @@ async function createPersonalAccount(
       requirePasswordChange: false,
     });
     await saveUserRecord(username);
+    await backupUserToRcDir(username, password);
     success(`账号 ${username} 已创建`);
     return true;
   } catch (err) {
-    error(`账号创建失败: ${(err as Error).message}`);
+    const msg = (err as Error).message || "";
+
+    // 用户名已被占用 — 尝试从备份恢复
+    if (msg.includes("already in use") || msg.includes("already exists") || msg.includes("Username is already")) {
+      warn(`用户名 ${username} 在 Rocket.Chat 中已存在。`);
+
+      const backup = await restoreUserFromRcDir(username);
+      if (backup) {
+        info(`从安装备份中找到 ${username} 的密码，尝试验证...`);
+        try {
+          await rc.login(username, backup.password);
+          await saveUserRecord(username);
+          success(`已恢复账号 ${username}（使用备份密码）`);
+          info("你的手机登录密码与上次相同。");
+          return true;
+        } catch {
+          warn("备份密码验证失败，可能已被修改。");
+        }
+      }
+
+      // 备份也没有 — 尝试用用户输入的密码登录
+      info("尝试用你输入的密码登录...");
+      try {
+        await rc.login(username, password);
+        await saveUserRecord(username);
+        await backupUserToRcDir(username, password);
+        success(`账号 ${username} 验证成功（密码匹配）`);
+        return true;
+      } catch {
+        // 密码不匹配
+      }
+
+      // 最后手段：用管理员权限重置密码
+      info("密码不匹配，使用管理员权限重置密码...");
+      try {
+        const userInfo = await rc.getUserInfo(username);
+        if (userInfo) {
+          await rc.updateUserPassword(userInfo._id, password);
+          await saveUserRecord(username);
+          await backupUserToRcDir(username, password);
+          success(`已重置 ${username} 的密码`);
+          return true;
+        }
+      } catch (resetErr) {
+        error(`密码重置失败: ${(resetErr as Error).message}`);
+      }
+
+      error(`无法恢复账号 ${username}。你可以在 Rocket.Chat 管理后台手动重置密码。`);
+      return false;
+    }
+
+    error(`账号创建失败: ${msg}`);
     return false;
   }
 }

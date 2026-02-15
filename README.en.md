@@ -19,6 +19,8 @@
 
 </div>
 
+> **📖 Docs:** [Quick Start (this page)](#quick-start-3-steps) · [Configuration](docs/CONFIGURATION.en.md) · [Architecture](docs/ARCHITECTURE.en.md) · [Security](docs/SECURITY.en.md)
+
 ---
 
 ## The Problem
@@ -213,7 +215,7 @@ Deploy once, access from phone, computer, tablet, or browser. Messages sync acro
 - **No vendor lock-in** — export your data anytime (standard MongoDB format)
 - You're running a standard Rocket.Chat server — plug in more features in the future (video calls, file sharing, webhook integrations, etc.)
 
-### Technical Features (v0.7.0)
+### Technical Features (v0.7.1)
 
 | Feature | Description |
 |---------|-------------|
@@ -225,6 +227,8 @@ Deploy once, access from phone, computer, tablet, or browser. Messages sync acro
 | @Mention State | Correctly passes `WasMentioned` field, matching official channel behavior |
 | authToken Compat | Auto-compatible with legacy credential format, no re-add needed |
 | One-Click Upgrade | `openclaw rocketchat upgrade` auto backup/restore config |
+| Security Hardening | Install script auto-generates strong random admin password, eliminating `admin/admin` risk |
+| Install Info Persistence | Install info saved to `.rc-info`, setup auto-reads it — zero manual input |
 
 ## Comparison
 
@@ -299,17 +303,20 @@ You'll see:
   Address: https://123-45-67-89.sslip.io
   HTTPS:   ✅ Let's Encrypt certificate (trusted, zero warnings)
 
-  🔑 Default admin credentials:
+  🔑 Admin credentials (strong password auto-generated):
      Username: admin
-     Password: admin
-   (This is Rocket.Chat's built-in admin. It will be automatically managed when you run openclaw rocketchat setup.
+     Password: Kx8mVp2dRfT7nQwL3s9A
+   (Saved to ~/rocketchat/.rc-info — setup will auto-read it.
     Regular users don't need this account — it's for server administration only.)
+
+  Install info saved to: ~/rocketchat/.rc-info
 
   📌 Next steps:
      1️⃣  Make sure firewall allows ports 443 and 80
-     2️⃣  On your OpenClaw machine, install plugin and configure:
+     2️⃣  Install plugin and configure:
          openclaw plugins install openclaw-rocketchat
          openclaw rocketchat setup
+         💡 On the same machine, setup auto-detects install info — no manual input needed!
      3️⃣  Add an AI bot:
          openclaw rocketchat add-bot
 ```
@@ -330,22 +337,21 @@ You'll see:
 ```
 === Rocket.Chat Setup Wizard ===
 
-Rocket.Chat server address
-  (local: https://127.0.0.1, remote: https://IP.sslip.io)
-  [default https://127.0.0.1]: https://123-45-67-89.sslip.io
+  ✅ Detected local Rocket.Chat installation
+    Server URL: https://123-45-67-89.sslip.io
+    Domain: 123-45-67-89.sslip.io
+    Admin: admin
 
+  Use detected info for auto-configuration? (recommended) (Y/n): Y
+
+  Using detected server address: https://123-45-67-89.sslip.io
   ⏳ Testing connection to https://123-45-67-89.sslip.io ...
   ✅ Connected! Rocket.Chat version: 8.1.0
 
-Admin account
-  1) Auto-create new admin (recommended for fresh installs)
-  2) Use existing admin account
-Choose: 1
-
   ⏳ Creating admin (internal, you don't need to remember)...
+  Default admin password changed to strong random password (secure)
   Public registration disabled (secure)
-  Email two-factor auth disabled
-  ✅ Admin created
+  ✅ Admin ready
 
 Create your phone login account
 Username: zhangsan
@@ -852,6 +858,7 @@ Yes. Use `openclaw rocketchat add-user` to add more phone users (family, colleag
 |----------|---------|
 | [Configuration Reference](docs/CONFIGURATION.en.md) | Full parameter tables, JSON example, manual editing, full reset |
 | [Architecture & Comparison](docs/ARCHITECTURE.en.md) | Full comparison table, architecture diagrams, tech stack |
+| [Security & Credentials](docs/SECURITY.en.md) | Password security, credential storage, backup/restore, file permissions |
 
 ## Contributing
 

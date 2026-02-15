@@ -10,6 +10,7 @@ import {
   saveBotCredentials,
   generatePassword,
   loadUserRecords,
+  restoreBotFromRcDir,
 } from "../config/credentials.js";
 import {
   ask,
@@ -124,8 +125,60 @@ export async function addBotCommand(configPath: string): Promise<void> {
     await saveBotCredentials(botUsername, botUser._id, botPassword);
     success(`机器人用户 ${botUsername} 已创建`);
   } catch (err) {
-    error(`机器人创建失败: ${(err as Error).message}`);
-    return;
+    const msg = (err as Error).message || "";
+
+    // 用户名已被占用 — 尝试从备份恢复
+    if (msg.includes("already in use") || msg.includes("already exists") || msg.includes("Username is already")) {
+      warn(`机器人 ${botUsername} 在 Rocket.Chat 中已存在，尝试恢复凭据...`);
+
+      // 尝试从 RC 安装目录备份恢复
+      const backup = await restoreBotFromRcDir(botUsername);
+      if (backup) {
+        info("从安装备份中找到凭据，验证中...");
+        try {
+          const loginResult = await rc.login(botUsername, backup.password);
+          await saveBotCredentials(botUsername, loginResult.userId, backup.password);
+          success(`已恢复机器人 ${botUsername} 的凭据`);
+        } catch {
+          // 备份密码失效，用管理员权限重置
+          warn("备份密码已失效，使用管理员权限重置...");
+          try {
+            const botInfo = await rc.getUserInfo(botUsername);
+            if (botInfo) {
+              await rc.updateUserPassword(botInfo._id, botPassword);
+              await saveBotCredentials(botUsername, botInfo._id, botPassword);
+              success(`已重置机器人 ${botUsername} 的密码`);
+            } else {
+              error(`无法找到机器人 ${botUsername} 的信息`);
+              return;
+            }
+          } catch (resetErr) {
+            error(`密码重置失败: ${(resetErr as Error).message}`);
+            return;
+          }
+        }
+      } else {
+        // 没有备份，直接用管理员权限重置密码
+        info("未找到备份凭据，使用管理员权限重置密码...");
+        try {
+          const botInfo = await rc.getUserInfo(botUsername);
+          if (botInfo) {
+            await rc.updateUserPassword(botInfo._id, botPassword);
+            await saveBotCredentials(botUsername, botInfo._id, botPassword);
+            success(`已重置机器人 ${botUsername} 的密码并恢复凭据`);
+          } else {
+            error(`无法找到机器人 ${botUsername} 的信息`);
+            return;
+          }
+        } catch (resetErr) {
+          error(`密码重置失败: ${(resetErr as Error).message}`);
+          return;
+        }
+      }
+    } else {
+      error(`机器人创建失败: ${msg}`);
+      return;
+    }
   }
 
   // ----------------------------------------------------------
