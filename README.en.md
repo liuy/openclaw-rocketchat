@@ -1,0 +1,694 @@
+<div align="center">
+
+# 🦞 openclaw-rocketchat
+
+**The Missing Channel for OpenClaw Users in China**
+
+[![npm version](https://img.shields.io/npm/v/openclaw-rocketchat?color=red)](https://www.npmjs.com/package/openclaw-rocketchat)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![GitHub](https://img.shields.io/badge/GitHub-Kxiandaoyan%2Fopenclaw--rocketchat-blue?logo=github)](https://github.com/Kxiandaoyan/openclaw-rocketchat)
+[![Node.js](https://img.shields.io/badge/node-%3E%3D22-green.svg)](https://nodejs.org/)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.7-blue.svg)](https://www.typescriptlang.org/)
+
+[中文](./README.md) | **English**
+
+---
+
+**Chat with your OpenClaw AI via Rocket.Chat App**
+**Dedicated Space · Dedicated Notifications · Self-Hosted · No VPN Required**
+
+</div>
+
+---
+
+## The Problem
+
+OpenClaw supports Telegram, WhatsApp, Discord, and 10+ other messaging platforms. Users worldwide can chat with their AI assistants through their favorite apps.
+
+**But what about users in mainland China?**
+
+- Telegram — blocked by the Great Firewall
+- WhatsApp — requires a foreign phone number
+- Discord — completely inaccessible
+- Feishu (Lark) — complex setup, requires enterprise account
+
+And there's a deeper problem: **even if these platforms work, your AI conversations get buried in social noise** — friend messages, group chats, channel updates. Important AI responses disappear in the flood.
+
+## The Solution
+
+> **What is Rocket.Chat?** [Rocket.Chat](https://www.rocket.chat/) is the world's largest open-source enterprise messaging platform, used by 12M+ users globally. Think of it as a self-hosted Slack/Teams you can run on your own server — polished UI, full-featured, multi-platform (phone/desktop/web), and downloadable from China's App Store.
+
+This plugin connects OpenClaw to **Rocket.Chat**.
+
+One command to deploy. Three steps to start chatting. Two deployment modes:
+
+**Mode A: Co-located (Recommended)**
+
+```
+Your Phone (Rocket.Chat App)
+       ↓ Direct IP Connection
+Your Machine (Rocket.Chat + OpenClaw)
+       ↓ localhost
+AI Brain (OpenClaw Agent)
+```
+
+**Mode B: Split Deployment (Home network / Low-spec server friendly)**
+
+```
+Your Phone (Rocket.Chat App)
+       ↓ Public IP
+Cloud VPS (Rocket.Chat + MongoDB only)
+       ↑ Plugin connects via public network
+Home / Local (OpenClaw + this plugin)
+       ↓ localhost
+AI Brain (OpenClaw Agent)
+```
+
+> Mode B is great for: OpenClaw on home LAN without public IP, low-memory servers, or companies with existing RC instances.
+> Install RC on remote VPS with one command: `curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash`
+
+**Either way, your AI data never passes through third parties.**
+
+## Ten Advantages
+
+### 1. 🏠 A Dedicated AI Workspace
+
+Using Telegram for AI chat? Your AI conversations are sandwiched between friend messages, group spam, and channel noise. Important AI replies get lost.
+
+**Rocket.Chat becomes your dedicated AI command center.** Open it, and all you see are your AI assistants — no social distractions, no unrelated messages. One app, one purpose.
+
+### 2. 🔔 Dedicated Push Notifications
+
+When OpenClaw sends you a message, you get a notification from **Rocket.Chat** — not Telegram's 99th unread, not WeChat's 200th group message.
+
+**You never miss an important AI response.**
+
+### 3. 🔐 Complete Data Sovereignty
+
+| Using Telegram | Using This Plugin |
+|---|---|
+| Messages go through Telegram's servers | Messages stay on your machine |
+| Chat history stored on someone else's cloud | Chat history in your own MongoDB |
+| You can't control where data goes | Docker volume is yours — delete anytime |
+| Terms of service change without notice | You are the terms of service |
+
+**Zero trust in third parties. Your AI conversations, private data, and work content stay on your own hard drive.**
+
+### 4. 🇨🇳 Works Perfectly in Mainland China
+
+- Rocket.Chat App is **directly downloadable** from China App Store / Google Play
+- Server runs on your own machine — **no cross-border traffic**
+- Phone connects directly via IP — **no domain, no SSL, no ICP registration needed**
+- Zero dependency on blocked services
+
+### 5. ⚡ One-Command Deployment, Two Modes
+
+No 10-page documentation to read. No browser-based admin panels to click through. No manual JSON editing.
+
+```bash
+openclaw rocketchat setup
+```
+
+An interactive wizard guides you through everything — Docker deployment, account creation, config writing — all in one go.
+
+Choose the deployment mode that fits your situation:
+
+| | Co-located | Split Deployment |
+|---|---|---|
+| **Who it's for** | Users with a public server | Home network, low-spec servers |
+| **RC runs on** | Same machine as OpenClaw | Separate cloud VPS |
+| **How to install** | `openclaw rocketchat setup` | `install-rc.sh` on VPS, connect locally |
+| **Advantage** | Simplest, one machine | OpenClaw can run at home, RC in the cloud |
+
+> Split deployment means even if your OpenClaw is on a **home LAN without a public IP**, a cheap VPS (1 core, 1 GB RAM is enough) lets your phone connect from anywhere.
+
+### 6. 🤖 Multi-Agent, Multi-Bot
+
+Create multiple Agents in OpenClaw (e.g., "Personal Assistant", "Work Helper", "Code Reviewer"), each appearing as a separate bot in Rocket.Chat:
+
+```
+Conversation List
+  🦞 Lobster          ← DM: Personal assistant
+  💼 Work Helper      ← DM: Work agent
+  🏠 AI Squad         ← Group: All bots together
+  📝 Code Review      ← Group: Dedicated code agent
+```
+
+**DMs and group chats coexist** — ask simple questions via DM, tackle complex problems in groups with multiple bots collaborating.
+
+### 7. 👥 Team Collaboration — Share AI Across Your Whole Team
+
+This isn't just a single-user AI tool — your entire team can use it together.
+
+```
+「Product Discussion」
+  👤 Alice (Product Manager)
+  👤 Bob (Designer)
+  👤 Charlie (Developer)
+  🤖 Lobster (AI Assistant)
+
+Alice: Can you analyze the technical feasibility of this feature?
+🦞 Lobster: Based on the requirements, I've analyzed three aspects...
+Bob: @Lobster Any color scheme suggestions?
+🦞 Lobster: From a UI/UX perspective, I recommend...
+Charlie: How long would this take to implement?
+🦞 Lobster: Based on the current tech stack, estimated...
+```
+
+One deployment, the whole team benefits:
+
+- **Companies/Teams** — Everyone discusses with AI in the same group, stay aligned, no relay needed
+- **Families** — Add an account for each family member, everyone gets their own AI assistant
+- **Studios** — Different projects get different groups, each with specialized Agents
+- **Education** — Teachers and students in the same group, AI-assisted learning
+
+`openclaw rocketchat add-user` adds a new member in one command, `openclaw rocketchat invite` pulls them into any group. **No per-person deployment, no per-person configuration — one service for everyone.**
+
+### 8. 🔒 Fine-Grained Permission Control
+
+Not everyone needs to talk to AI — some people just need to watch.
+
+| Permission | View Messages | Send Messages | DM Bots | Use Case |
+|---|---|---|---|---|
+| **Full Access** | ✅ | ✅ | ✅ | Regular team members |
+| **Read-Only** | ✅ | ❌ | ❌ | Boss monitoring, auditing, observers |
+
+Typical scenarios:
+- **Boss/Manager** — Read-only, review team-AI conversations anytime, track project progress
+- **Interns** — Read-only, observe senior staff's AI discussions, learn and grow
+- **Clients** — Read-only, see AI-generated analysis reports without interfering
+- **Audit/Compliance** — Read-only, monitor AI usage for regulatory compliance
+
+```bash
+openclaw rocketchat add-user
+# Choose during setup:
+#   1) Full access — can send messages in groups and DM bots
+#   2) Read-only — can only view group messages, no sending or DM
+```
+
+**No other platform offers this** — on Telegram or WhatsApp, users either see everything and can say everything, or see nothing at all.
+
+### 9. 📱 Cross-Platform
+
+Official Rocket.Chat clients: [rocket.chat/download-apps](https://www.rocket.chat/download-apps)
+
+| Platform | How to Download |
+|---|---|
+| **iOS** | Search **"Rocket.Chat"** on App Store (developer: Rocket.Chat Technologies Corp)<br>Available in China App Store — no account switching needed |
+| **Android** | Search **"Rocket.Chat"** on Google Play, or download APK from the official site |
+| **macOS** | [Mac App Store](https://apps.apple.com/app/rocket-chat/id1148741252) or [download .dmg](https://www.rocket.chat/download-apps) |
+| **Windows** | [Download installer](https://www.rocket.chat/download-apps) |
+| **Linux** | [Download](https://www.rocket.chat/download-apps) (.deb / .rpm / Snap) |
+| **Web** | No download needed — open `http://YOUR_IP:3000` in any browser |
+
+> 💡 **Search tip**: In App Store / Google Play, search "Rocket.Chat" and look for the developer **Rocket.Chat Technologies Corp**.
+
+Deploy once, access from phone, computer, tablet, or browser. Messages sync across all devices in real time.
+
+### 10. 🆓 Completely Free, Open Source, No Vendor Lock-In
+
+- No subscription fees, no message limits, no feature restrictions
+- MIT license — modify as you wish
+- Built on Rocket.Chat's open-source ecosystem with an active community
+- **No vendor lock-in** — export your data anytime (standard MongoDB format)
+- You're running a standard Rocket.Chat server — plug in more features in the future (video calls, file sharing, webhook integrations, etc.)
+
+## Comparison
+
+|  | Feishu | Telegram | WhatsApp | This Plugin |
+|---|---|---|---|---|
+| **China Available** | ✅ | ❌ VPN needed | ❌ Foreign # needed | ✅ |
+| **Setup Complexity** | 🔴 High | 🔴 High (VPN) | 🔴 High | 🟢 One command |
+| **Dedicated AI Space** | ❌ Mixed with work | ❌ Mixed with social | ❌ Mixed with social | ✅ Dedicated |
+| **Dedicated Notifications** | ❌ Mixed | ❌ Buried | ❌ Buried | ✅ Standalone |
+| **Data Privacy** | 🟡 Via Feishu servers | 🟡 Via TG servers | 🟡 Via Meta servers | 🟢 Fully local |
+| **Multi-Agent** | Manual config | Supported | Supported | ✅ Interactive setup |
+| **Group Multi-Bot** | Limited | Supported | Not supported | ✅ Supported |
+| **Multi-User Team** | Enterprise only | ❌ Separate setups | ❌ Separate setups | ✅ One deploy for all |
+| **Permission Control** | Enterprise only | ❌ | ❌ | ✅ Full/Read-Only |
+| **Split Deployment** | ❌ | ❌ | ❌ | ✅ Home LAN works |
+| **Self-Hosted** | ❌ | ❌ | ❌ | ✅ |
+| **Free** | Limited | Yes | Yes | ✅ Completely free |
+| **Open Source** | ❌ | ❌ | ❌ | ✅ MIT |
+
+## Quick Start
+
+### Prerequisites
+
+- [OpenClaw](https://docs.openclaw.ai/) installed (Docker will be auto-guided if not present)
+- A server with a **public IP** (Alibaba Cloud, AWS, etc.), or an existing remote Rocket.Chat server
+- Firewall / security group allows **port 3000** (or your custom port)
+
+### Step 1: Install Plugin + Deploy Rocket.Chat
+
+```bash
+openclaw plugins install openclaw-rocketchat
+openclaw rocketchat setup
+```
+
+First, choose a deployment mode:
+
+```
+=== Rocket.Chat Deployment Wizard ===
+
+Choose deployment mode:
+  1) Local (Docker) — RC and OpenClaw on the same machine
+  2) Connect to remote server — RC already deployed elsewhere
+Choose: 1
+```
+
+> Option 1 works for most users (everything on one machine).
+> Option 2 is for when OpenClaw is on a home LAN, server is low-spec, or your company already has RC.
+
+**After choosing 1 (local), you'll see:**
+
+```
+  ⏳ Checking environment...
+  Docker:          Installed (v27.1.1)
+  Docker Compose:  Installed (v2.29.1)
+  Port 3000:       Available
+
+Port [default 3000]: 3000
+
+Create your phone login account
+  Username: zhangsan
+  Password: ********
+  Confirm:  ********
+
+  ⏳ Generating Docker config...
+  ✅ Docker config generated
+  ⏳ Pulling images & starting (first time ~2-5 min)...
+  ⏳ Waiting for service... (30s)
+  ✅ Rocket.Chat is ready
+  ⏳ Creating admin (internal, you don't need to remember)...
+  ✅ Admin created
+  ⏳ Creating account zhangsan...
+  ✅ Account zhangsan created
+  ⏳ Writing openclaw.json config...
+  ✅ Config saved
+
+╔══════════════════════════════════════════╗
+║          🎉 Deployment complete!         ║
+╚══════════════════════════════════════════╝
+
+  📱 Phone setup:
+     1. Download "Rocket.Chat" from App Store
+     2. Server address: http://123.45.67.89:3000
+     3. Username: zhangsan
+     4. Password: the one you just set
+
+  💡 Next: openclaw rocketchat add-bot
+```
+
+**You only type 3 things: port, username, password. Everything else is automatic.**
+
+### Step 2: Add an AI Bot
+
+```bash
+openclaw rocketchat add-bot
+```
+
+Here's what you'll see:
+
+```
+=== Add Rocket.Chat Bot ===
+
+Bot username: molty
+Display name [default molty]: Lobster
+
+Bind to which Agent?
+  Available Agents:
+    1) main (default)
+    2) work (Work Helper)
+  Select: 1
+
+  ⏳ Creating bot user molty...
+  ✅ Bot user molty created
+  ⏳ Establishing DM between zhangsan and molty...
+  ✅ DM ready
+  ⏳ Writing config + binding...
+  ✅ Config updated
+
+  ✅ Bot molty (Lobster) created
+     Bound to Agent: main
+     DM ready
+
+  📱 Open Rocket.Chat App to see molty — send a message to start!
+```
+
+**Type a bot name, pick an Agent number, done.**
+
+### Step 3: Download Rocket.Chat on Your Phone, Start Chatting
+
+1. Download Rocket.Chat App
+   - **iPhone**: Search **"Rocket.Chat"** on App Store
+   - **Android**: Search **"Rocket.Chat"** on Google Play, or download APK from the [official site](https://www.rocket.chat/download-apps)
+   - **Desktop**: [Download desktop client](https://www.rocket.chat/download-apps), or open `http://YOUR_IP:3000` in your browser
+2. Open the app, tap **"Add Server"**, enter: `http://YOUR_PUBLIC_IP:3000`
+3. Login with the credentials from Step 1
+4. Find the bot, send a message, start chatting!
+
+**That's it. 2 commands + download an app. You're done.**
+
+---
+
+### More Features
+
+These commands are optional — use them when you need them:
+
+<details>
+<summary><b>Remote Rocket.Chat installation (split deployment)</b></summary>
+
+If you chose Mode B (split deployment), run on your remote VPS:
+
+```bash
+# SSH into your VPS, then one-click install:
+curl -fsSL https://raw.githubusercontent.com/Kxiandaoyan/openclaw-rocketchat/main/install-rc.sh | bash
+
+# Or specify a custom port:
+RC_PORT=4000 bash install-rc.sh
+```
+
+The script will automatically:
+- Detect and install Docker (if not present)
+- Pull Rocket.Chat + MongoDB images
+- Start services and wait until ready
+- Output the server address and next steps
+
+After installation, go back to your OpenClaw machine and run `openclaw rocketchat setup`, choose "Connect to remote server", and enter the address output by the script.
+
+</details>
+
+<details>
+<summary><b>Create multi-bot group</b></summary>
+
+```bash
+openclaw rocketchat add-group
+```
+
+```
+=== Create Rocket.Chat Private Channel ===
+
+Channel name: AI Squad
+
+Add which bots?
+  Available bots:
+    1) molty (Lobster) -> Agent: main
+    2) work-claw (Work Helper) -> Agent: work
+  Select (comma-separated): 1,2
+
+Add which users?
+  Available users:
+    1) zhangsan
+  Select (comma-separated, Enter for all):
+
+Require @mention to respond? [y/N]: n
+
+  ✅ Channel "AI Squad" created
+     Members: zhangsan, molty, work-claw
+```
+
+</details>
+
+<details>
+<summary><b>Add more phone users (family, colleagues)</b></summary>
+
+```bash
+openclaw rocketchat add-user
+```
+
+```
+=== Add Phone Login User ===
+
+Username: lisi
+Password: ********
+Confirm:  ********
+
+User permission:
+  1) Full access — can send messages in groups and DM bots
+  2) Read-only — can only view group messages, no sending or DM
+Choose: 1
+
+Join existing groups?
+  Available groups:
+    1) AI Squad (bots: molty, work-claw)
+  Select (comma-separated): 1
+
+  ✅ User lisi created (full access)
+     Permission: ✅ Full access
+     Joined: AI Squad
+     Login: http://123.45.67.89:3000 / Username: lisi
+
+  📱 Tell lisi to download Rocket.Chat App, server: http://123.45.67.89:3000
+     Login with the username and password above, then:
+     - Discuss with AI together in "AI Squad" group
+     - DM any bot directly for one-on-one AI conversations
+```
+
+> **Read-only mode** is great for bosses monitoring progress, auditing, or observing. Read-only users can see all group messages but can't send messages or DM bots.
+
+</details>
+
+<details>
+<summary><b>Remove a user</b></summary>
+
+```bash
+openclaw rocketchat remove-user
+```
+
+```
+=== Remove Phone User ===
+
+Select user to remove:
+  1) lisi
+  2) wangwu
+Choose: 1
+
+⚠️  About to delete user lisi — this cannot be undone!
+   The user will be permanently removed from Rocket.Chat,
+   removed from all groups, and DM history will be lost.
+
+Confirm delete lisi? [y/N]: y
+
+  ⏳ Removing from "AI Squad"...
+  ✅ Removed from "AI Squad"
+  ⏳ Deleting user lisi from Rocket.Chat...
+  ✅ User lisi deleted from Rocket.Chat
+  ⏳ Cleaning local records...
+  ✅ Local records cleaned
+
+  ✅ User lisi completely deleted
+     Their Rocket.Chat App will no longer be able to log in.
+```
+
+</details>
+
+<details>
+<summary><b>Manage group members</b></summary>
+
+```bash
+openclaw rocketchat invite
+```
+
+```
+=== Group Member Management ===
+
+Select group:
+  1) AI Squad
+Choose: 1
+
+Action:
+  1) Invite user to group
+  2) Remove user
+  3) Set as admin (Moderator)
+  4) Set as owner (Owner)
+  5) Back
+Choose: 1
+
+Invite who?
+  1) lisi
+  2) wangwu
+Choose: 1
+
+  ⏳ Inviting lisi...
+  ✅ lisi has joined "AI Squad"
+```
+
+</details>
+
+<details>
+<summary><b>Check running status</b></summary>
+
+```bash
+openclaw rocketchat status
+```
+
+```
+=== Rocket.Chat Status ===
+
+  Server:     Running - http://123.45.67.89:3000
+  MongoDB:    Running
+
+Users
+  zhangsan    lisi 🔒readonly
+
+Bots                          Agent           Status
+  molty (Lobster)             main            Online
+  work-claw (Work Helper)     work            Online
+
+Private Channels
+  AI Squad     zhangsan(Owner), lisi, molty(Bot), work-claw(Bot)
+```
+
+</details>
+
+<details>
+<summary><b>Uninstall</b></summary>
+
+```bash
+openclaw rocketchat uninstall
+```
+
+</details>
+
+## Commands
+
+| Command | Description |
+|---|---|
+| `openclaw rocketchat setup` | Deploy Rocket.Chat + create accounts |
+| `openclaw rocketchat add-bot` | Add bot + bind Agent + create DM |
+| `openclaw rocketchat add-group` | Create private channel (multi-bot group) |
+| `openclaw rocketchat add-user` | Add phone login user |
+| `openclaw rocketchat remove-user` | Remove phone login user |
+| `openclaw rocketchat invite` | Manage group members |
+| `openclaw rocketchat status` | View running status (with Agent health check) |
+| `openclaw rocketchat uninstall` | Uninstall Rocket.Chat |
+
+All commands are **interactive** — no flags to memorize, just follow the prompts.
+
+## Architecture
+
+### Mode A: Co-located
+
+Everything on one server — simplest setup.
+
+```
+┌─────────────────────────────────────────────┐
+│              📱 Your Phone                   │
+│           Rocket.Chat App                    │
+└─────────────┬───────────────────────────────┘
+              │ HTTP (Public IP:3000)
+┌─────────────▼───────────────────────────────┐
+│       Your Server (one machine does it all)  │
+│                                              │
+│  ┌─────────────────┐  ┌──────────────────┐  │
+│  │  Rocket.Chat    │  │  OpenClaw Gateway │  │
+│  │  (Docker)       │  │                   │  │
+│  │                 │◄─┤  @openclaw/       │  │
+│  │  ┌───────────┐  │  │  rocketchat       │  │
+│  │  │ MongoDB   │  │  │  plugin           │  │
+│  │  └───────────┘  │  │                   │  │
+│  └─────────────────┘  │  ┌─────────────┐  │  │
+│                        │  │ Agent: main │  │  │
+│                        │  │ Agent: work │  │  │
+│                        │  └─────────────┘  │  │
+│                        └──────────────────┘  │
+└──────────────────────────────────────────────┘
+```
+
+### Mode B: Split Deployment
+
+RC on a cloud VPS, OpenClaw on home network or low-spec machine. Great when you don't have a public IP or need to save memory.
+
+```
+┌─────────────────────────────────────────────┐
+│              📱 Your Phone                   │
+│           Rocket.Chat App                    │
+└─────────────┬───────────────────────────────┘
+              │ HTTP (Public IP:3000)
+┌─────────────▼───────────────────────────────┐
+│    Cloud VPS (cheap 1C1G is enough)          │
+│                                              │
+│  ┌─────────────────┐                         │
+│  │  Rocket.Chat    │  ← install-rc.sh       │
+│  │  (Docker)       │    one-click install    │
+│  │  ┌───────────┐  │                         │
+│  │  │ MongoDB   │  │                         │
+│  │  └───────────┘  │                         │
+│  └────────▲────────┘                         │
+└───────────┼──────────────────────────────────┘
+            │ HTTP/WebSocket (public network)
+┌───────────┼──────────────────────────────────┐
+│       Home Network / Local Machine            │
+│           │                                   │
+│  ┌────────┴─────────────────────────────┐    │
+│  │  OpenClaw Gateway                     │    │
+│  │                                       │    │
+│  │  @openclaw/rocketchat plugin          │    │
+│  │  (connects to remote RC via internet) │    │
+│  │                                       │    │
+│  │  ┌─────────────┐                      │    │
+│  │  │ Agent: main │                      │    │
+│  │  │ Agent: work │                      │    │
+│  │  └─────────────┘                      │    │
+│  └───────────────────────────────────────┘    │
+└───────────────────────────────────────────────┘
+```
+
+> For Mode B, just run `install-rc.sh` on your remote VPS to install Rocket.Chat, then run `openclaw rocketchat setup` locally and choose "Connect to remote server".
+
+## FAQ
+
+<details>
+<summary><b>Are push notifications reliable in China?</b></summary>
+
+When the app is in the foreground, messages arrive via WebSocket in real-time with zero delay. In the background, notifications go through APNs with ~1-5 second delay, occasionally lost — consistent with most apps' push behavior in China.
+</details>
+
+<details>
+<summary><b>What message formats are supported?</b></summary>
+
+Plain text, Markdown (with syntax highlighting), images, files, and voice messages. Rocket.Chat natively renders Markdown with code block highlighting.
+</details>
+
+<details>
+<summary><b>Can multiple people use it?</b></summary>
+
+Yes. Use `openclaw rocketchat add-user` to add more phone users (family, colleagues). Each person downloads Rocket.Chat and logs in with their own account.
+</details>
+
+## Tech Stack
+
+- **TypeScript** — Consistent with the OpenClaw ecosystem
+- **Rocket.Chat REST API** — User/group/message management
+- **Rocket.Chat WebSocket (DDP)** — Real-time message subscription
+- **Docker Compose** — One-click Rocket.Chat + MongoDB deployment
+- **Vitest** — Unit testing
+
+## Contributing
+
+Contributions welcome! Whether it's bug reports, feature suggestions, or code:
+
+1. Fork this repository
+2. Create your branch (`git checkout -b feature/amazing`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to remote (`git push origin feature/amazing`)
+5. Create a Pull Request
+
+## License
+
+[MIT](LICENSE) — Free to use, free to modify.
+
+---
+
+<div align="center">
+
+**If this plugin helps you, please give it a Star ⭐**
+
+**Every Star shows support for the Chinese developer community 🇨🇳**
+
+[![Star History Chart](https://api.star-history.com/svg?repos=Kxiandaoyan/openclaw-rocketchat&type=Date)](https://star-history.com/#Kxiandaoyan/openclaw-rocketchat&Date)
+
+*Making AI assistants accessible to every user in China*
+
+</div>

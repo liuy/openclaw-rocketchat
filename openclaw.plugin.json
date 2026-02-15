@@ -1,0 +1,45 @@
+{
+  "id": "rocketchat",
+  "name": "Rocket.Chat",
+  "description": "Rocket.Chat channel plugin for OpenClaw — connect via mobile app, ideal for China mainland users",
+  "version": "0.1.0",
+  "channels": ["rocketchat"],
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "enabled": { "type": "boolean", "default": false },
+      "serverUrl": {
+        "type": "string",
+        "description": "Rocket.Chat server URL, e.g. http://192.168.1.100:3000"
+      },
+      "port": { "type": "number", "default": 3000 },
+      "dmPolicy": {
+        "type": "string",
+        "enum": ["pairing", "allowlist", "open"],
+        "default": "pairing"
+      },
+      "accounts": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "botUsername": { "type": "string" },
+            "botDisplayName": { "type": "string" }
+          },
+          "required": ["botUsername"]
+        }
+      },
+      "groups": {
+        "type": "object",
+        "additionalProperties": {
+          "type": "object",
+          "properties": {
+            "requireMention": { "type": "boolean", "default": false },
+            "bots": { "type": "array", "items": { "type": "string" } }
+          }
+        }
+      }
+    }
+  }
+}
