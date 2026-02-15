@@ -382,7 +382,19 @@ export class RocketChatRestClient {
       // 继续尝试其他方式
     }
 
-    // 方式 2：/api/v1/login 探测连通性 + 从 HTML 提取版本（RC 8.x）
+    // 方式 2：/api/info（不带 /v1，部分 RC 版本支持）
+    try {
+      const res = await fetch(`${this.serverUrl}/api/info`);
+      if (res.ok) {
+        const data = (await res.json()) as { version?: string; info?: { version?: string } };
+        const ver = data.version || data.info?.version;
+        if (ver) return { version: ver, success: true };
+      }
+    } catch {
+      // 继续
+    }
+
+    // 方式 3：/api/v1/login 探测连通性（RC 8.x）
     const loginUrl = `${this.serverUrl}/api/v1/login`;
     const response = await fetch(loginUrl, {
       method: "POST",
@@ -391,14 +403,30 @@ export class RocketChatRestClient {
     });
     await response.json(); // 只要返回 JSON 就算连通
 
-    // 尝试从根页面 HTML 提取版本号
+    // 尝试从根页面 HTML 的 __meteor_runtime_config__ 提取版本
     let version = "unknown";
     try {
       const html = await (await fetch(this.serverUrl)).text();
-      // RC 在 HTML 中嵌入了 __meteor_runtime_config__，包含版本
-      const match = html.match(/(?:Rocket\.Chat|version)['":\s]+([\d.]+)/i)
-        || html.match(/"autoupdate":.*?"version":"([\d.]+)"/);
-      if (match) version = match[1];
+      // RC 在 script 中嵌入 __meteor_runtime_config__，包含 "ROOT_URL_PATH_PREFIX" 和版本等
+      // 匹配常见的版本模式
+      const meteorMatch = html.match(/__meteor_runtime_config__\s*=\s*JSON\.parse\(decodeURIComponent\("([^"]+)"\)\)/);
+      if (meteorMatch) {
+        try {
+          const config = JSON.parse(decodeURIComponent(meteorMatch[1])) as Record<string, unknown>;
+          // autoupdateVersion 或 autoupdateVersionCordova 包含版本哈希，不一定是语义版本
+          // 尝试从嵌套结构中提取
+          const configStr = JSON.stringify(config);
+          const verMatch = configStr.match(/"version"\s*:\s*"(\d+\.\d+\.\d+)"/);
+          if (verMatch) version = verMatch[1];
+        } catch {
+          // 解码失败
+        }
+      }
+      // 兜底：直接在 HTML 中搜索 x.y.z 格式的版本号
+      if (version === "unknown") {
+        const simpleMatch = html.match(/Rocket\.Chat\s+(?:Version:?\s*)?(\d+\.\d+\.\d+)/i);
+        if (simpleMatch) version = simpleMatch[1];
+      }
     } catch {
       // 版本获取不影响功能
     }

@@ -9,6 +9,7 @@ import { RocketChatRestClient } from "../rc-api/rest-client.js";
 import { ConfigWriter } from "../config/writer.js";
 import {
   saveAdminCredentials,
+  loadAdminCredentials,
   saveUserRecord,
   generatePassword,
   generateAdminUsername,
@@ -223,47 +224,108 @@ async function createAdminAccount(
   serverUrl: string,
 ): Promise<boolean> {
   step("创建管理员（内部使用，你不需要记住）...");
-  const adminUsername = generateAdminUsername();
-  const adminPassword = generatePassword();
-  const adminEmail = `${adminUsername}@openclaw.local`;
 
   try {
-    // 尝试 1：用默认 admin/admin 登录（适用于全新 RC）
-    let savedUsername = adminUsername;
-    let savedPassword = adminPassword;
-
     let adminResult: { userId: string; authToken: string };
+    let savedUsername: string;
+    let savedPassword: string;
 
+    // ---------------------------------------------------
+    // 策略 1：尝试用已保存的凭据登录（之前 setup 过、中途退出的场景）
+    // ---------------------------------------------------
+    const savedCreds = await loadAdminCredentials();
+    if (savedCreds?.username && savedCreds?.password) {
+      try {
+        adminResult = await rc.login(savedCreds.username, savedCreds.password);
+        savedUsername = savedCreds.username;
+        savedPassword = savedCreds.password;
+        info("使用已保存的管理员凭据登录成功");
+
+        await saveAdminCredentials({
+          userId: adminResult.userId,
+          authToken: adminResult.authToken,
+          username: savedUsername,
+          password: savedPassword,
+        });
+        rc.setAuth(adminResult.userId, adminResult.authToken);
+        success("管理员已就绪");
+        return true;
+      } catch {
+        // 凭据过期或无效，继续尝试其他方式
+      }
+    }
+
+    // ---------------------------------------------------
+    // 策略 2：用默认 admin/admin 登录（全新 RC 的默认账号）
+    // ---------------------------------------------------
     try {
       adminResult = await rc.login("admin", "admin");
-      // 默认 admin/admin 登录成功，保存正确的凭据
       savedUsername = "admin";
       savedPassword = "admin";
-    } catch {
-      // 尝试 2：通过注册接口创建第一个用户（在全新 RC 上自动成为 admin）
-      const response = await fetch(`${serverUrl}/api/v1/users.register`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          username: adminUsername,
-          email: adminEmail,
-          pass: adminPassword,
-          name: "RC Admin",
-        }),
-      });
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({} as Record<string, unknown>));
-        const errorMsg = (errorData as Record<string, string>).error || "注册失败";
-        throw new Error(
-          errorMsg.includes("registration-disabled") || errorMsg.includes("Registration")
-            ? "注册被禁用。请先在 docker-compose.yml 中移除 OVERWRITE_SETTING_Accounts_RegistrationForm 行，重启 RC 后重试"
-            : `无法创建管理员账号: ${errorMsg}`,
-        );
+      await saveAdminCredentials({
+        userId: adminResult.userId,
+        authToken: adminResult.authToken,
+        username: savedUsername,
+        password: savedPassword,
+      });
+      rc.setAuth(adminResult.userId, adminResult.authToken);
+
+      // 安全措施：关闭公开注册
+      try {
+        await rc.setSetting("Accounts_RegistrationForm", "Disabled");
+        info("已自动关闭公开注册（安全）");
+      } catch {
+        // 忽略
       }
 
-      adminResult = await rc.login(adminUsername, adminPassword);
+      success("管理员已创建");
+      return true;
+    } catch {
+      // admin/admin 不可用，继续
     }
+
+    // ---------------------------------------------------
+    // 策略 3：通过注册接口创建新管理员
+    // ---------------------------------------------------
+    const adminUsername = generateAdminUsername();
+    const adminPassword = generatePassword();
+    const adminEmail = `${adminUsername}@openclaw.local`;
+
+    const response = await fetch(`${serverUrl}/api/v1/users.register`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: adminUsername,
+        email: adminEmail,
+        pass: adminPassword,
+        name: "RC Admin",
+      }),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({} as Record<string, unknown>));
+      const errorMsg = (errorData as Record<string, string>).error || "注册失败";
+
+      if (errorMsg.includes("registration-disabled") || errorMsg.includes("Registration")) {
+        // 注册被禁用 — 说明之前创建过管理员但凭据丢失
+        error("注册已被禁用，且没有找到可用的管理员凭据。");
+        info("这通常是因为之前运行过 setup 并创建了管理员。");
+        console.log("");
+        info("解决方案（任选一种）：");
+        info("  1. 选择「使用已有管理员账号」，手动输入你的管理员账号密码");
+        info("  2. 如果忘记了管理员密码，重置 Rocket.Chat：");
+        info(`     cd ~/rocketchat && docker compose down -v`);
+        info("     然后重新运行 install-rc.sh 和 setup");
+        return false;
+      }
+
+      throw new Error(`无法创建管理员账号: ${errorMsg}`);
+    }
+
+    adminResult = await rc.login(adminUsername, adminPassword);
+    savedUsername = adminUsername;
+    savedPassword = adminPassword;
 
     await saveAdminCredentials({
       userId: adminResult.userId,
