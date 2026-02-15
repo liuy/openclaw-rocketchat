@@ -173,9 +173,11 @@ export async function removeUserRecord(username: string): Promise<void> {
 // 工具
 // ----------------------------------------------------------
 
-/** 生成随机密码 */
+/** 生成随机密码（满足 RC 默认密码策略：大小写+数字+特殊字符） */
 export function generatePassword(length = 24): string {
-  return randomBytes(length).toString("base64url").slice(0, length);
+  const base = randomBytes(length).toString("base64url").slice(0, length - 4);
+  // 确保包含大写、小写、数字、特殊字符
+  return `${base}Ax1!`;
 }
 
 /** 生成随机管理员用户名 */
