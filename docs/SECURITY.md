@@ -1,4 +1,4 @@
-[首页](../README.md) · [使用指南](GUIDE.md) · [常见问题](FAQ.md) · [配置参数](CONFIGURATION.md) · [架构](ARCHITECTURE.md) · [安全](SECURITY.md) · [多 Agent](MULTI-AGENT.md)
+[首页](../README.md) · [使用指南](GUIDE.md) · [常见问题](FAQ.md) · [配置参数](CONFIGURATION.md) · [架构](ARCHITECTURE.md) · [安全](SECURITY.md) · [多 Agent](MULTI-AGENT.md) · [多渠道](MULTI-CHANNEL.md)
 
 # 🔒 安全模型与凭据管理
 

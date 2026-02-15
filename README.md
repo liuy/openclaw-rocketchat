@@ -19,7 +19,7 @@
 
 </div>
 
-> **📖 文档导航：** [使用指南](docs/GUIDE.md) · [常见问题](docs/FAQ.md) · [配置参数](docs/CONFIGURATION.md) · [架构与对比](docs/ARCHITECTURE.md) · [安全与凭据](docs/SECURITY.md) · [多 Agent](docs/MULTI-AGENT.md)
+> **📖 文档导航：** [使用指南](docs/GUIDE.md) · [常见问题](docs/FAQ.md) · [配置参数](docs/CONFIGURATION.md) · [架构与对比](docs/ARCHITECTURE.md) · [安全与凭据](docs/SECURITY.md) · [多 Agent](docs/MULTI-AGENT.md) · [多渠道](docs/MULTI-CHANNEL.md)
 
 ---
 
