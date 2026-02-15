@@ -19,7 +19,7 @@
 
 </div>
 
-> **📖 Docs:** [Guide](docs/GUIDE.en.md) · [FAQ](docs/FAQ.en.md) · [Configuration](docs/CONFIGURATION.en.md) · [Architecture](docs/ARCHITECTURE.en.md) · [Security](docs/SECURITY.en.md) · [Multi-Agent](docs/MULTI-AGENT.en.md) · [Multi-Channel](docs/MULTI-CHANNEL.en.md)
+> **📖 Docs:** [Guide](docs/GUIDE.en.md) · [FAQ](docs/FAQ.en.md) · [Config](docs/CONFIGURATION.en.md) · [Architecture](docs/ARCHITECTURE.en.md) · [Security](docs/SECURITY.en.md) · [Multi-Agent](docs/MULTI-AGENT.en.md) · [Multi-Channel](docs/MULTI-CHANNEL.en.md) · [Commands](docs/COMMANDS.en.md)
 
 ---
 

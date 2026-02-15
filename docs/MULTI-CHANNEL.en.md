@@ -1,4 +1,4 @@
-[Home](../README.en.md) · [Guide](GUIDE.en.md) · [FAQ](FAQ.en.md) · [Config](CONFIGURATION.en.md) · [Architecture](ARCHITECTURE.en.md) · [Security](SECURITY.en.md) · [Multi-Agent](MULTI-AGENT.en.md) · [Multi-Channel](MULTI-CHANNEL.en.md)
+[Home](../README.en.md) · [Guide](GUIDE.en.md) · [FAQ](FAQ.en.md) · [Config](CONFIGURATION.en.md) · [Architecture](ARCHITECTURE.en.md) · [Security](SECURITY.en.md) · [Multi-Agent](MULTI-AGENT.en.md) · [Multi-Channel](MULTI-CHANNEL.en.md) · [Commands](COMMANDS.en.md)
 
 # Multi-Channel Coexistence Guide
 
