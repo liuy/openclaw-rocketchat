@@ -20,6 +20,7 @@ import {
   backupAdminToRcDir,
   backupUserToRcDir,
   restoreUserFromRcDir,
+  restoreAdminFromRcDir,
 } from "../config/credentials.js";
 import {
   ask,
@@ -187,7 +188,7 @@ export async function setupCommand(configPath: string): Promise<void> {
   // ----------------------------------------------------------
   if (autoMode) {
     // 自动模式：直接走"自动创建管理员"路径（内部会尝试 admin/admin）
-    const adminCreated = await createAdminAccount(rc, cleanUrl);
+    const adminCreated = await createAdminAccount(rc, cleanUrl, rcInfo);
     if (!adminCreated) return;
   } else {
     console.log("");
@@ -205,7 +206,7 @@ export async function setupCommand(configPath: string): Promise<void> {
     ]);
 
     if (adminMode === "create") {
-      const adminCreated = await createAdminAccount(rc, cleanUrl);
+      const adminCreated = await createAdminAccount(rc, cleanUrl, rcInfo);
       if (!adminCreated) return;
     } else {
       const existingAdminUser = await ask("管理员用户名");
@@ -329,8 +330,32 @@ async function promptUserAccount(): Promise<{ username: string; password: string
 async function createAdminAccount(
   rc: RocketChatRestClient,
   serverUrl: string,
+  rcInfo?: RcInfo | null,
 ): Promise<boolean> {
   step("创建管理员（内部使用，你不需要记住）...");
+
+  /** 通用登录 + 保存逻辑 */
+  async function tryLogin(
+    user: string,
+    pass: string,
+    label: string,
+  ): Promise<boolean> {
+    try {
+      const result = await rc.login(user, pass);
+      info(`${label}登录成功`);
+      await saveAdminCredentials({
+        userId: result.userId,
+        authToken: result.authToken,
+        username: user,
+        password: pass,
+      });
+      rc.setAuth(result.userId, result.authToken);
+      success("管理员已就绪");
+      return true;
+    } catch {
+      return false;
+    }
+  }
 
   try {
     let adminResult: { userId: string; authToken: string };
@@ -342,23 +367,27 @@ async function createAdminAccount(
     // ---------------------------------------------------
     const savedCreds = await loadAdminCredentials();
     if (savedCreds?.username && savedCreds?.password) {
-      try {
-        adminResult = await rc.login(savedCreds.username, savedCreds.password);
-        savedUsername = savedCreds.username;
-        savedPassword = savedCreds.password;
-        info("使用已保存的管理员凭据登录成功");
-
-        await saveAdminCredentials({
-          userId: adminResult.userId,
-          authToken: adminResult.authToken,
-          username: savedUsername,
-          password: savedPassword,
-        });
-        rc.setAuth(adminResult.userId, adminResult.authToken);
-        success("管理员已就绪");
+      if (await tryLogin(savedCreds.username, savedCreds.password, "使用已保存的管理员凭据")) {
         return true;
-      } catch {
-        // 凭据过期或无效，继续尝试其他方式
+      }
+    }
+
+    // ---------------------------------------------------
+    // 策略 1b：从 RC 安装目录备份恢复凭据（插件重装后凭据丢失的场景）
+    // ---------------------------------------------------
+    const backupCreds = await restoreAdminFromRcDir();
+    if (backupCreds?.username && backupCreds?.password) {
+      if (await tryLogin(backupCreds.username, backupCreds.password, "从备份恢复管理员凭据")) {
+        return true;
+      }
+    }
+
+    // ---------------------------------------------------
+    // 策略 1c：用 .rc-info 中的管理员密码登录（install-rc.sh 保存的密码）
+    // ---------------------------------------------------
+    if (rcInfo?.adminUser && rcInfo?.adminPass) {
+      if (await tryLogin(rcInfo.adminUser, rcInfo.adminPass, "使用安装信息中的管理员凭据")) {
+        return true;
       }
     }
 
