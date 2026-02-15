@@ -283,26 +283,28 @@ export async function upgradeCommand(configPath: string): Promise<void> {
 }
 
 /**
- * 确保 plugins.entries 和 plugins.installs 中同时存在
- * "openclaw-rocketchat" 和 "rocketchat" 两个条目。
+ * 确保 plugins.entries 和 plugins.installs 使用 "rocketchat" 作为键名。
  *
  * 原因：框架 doctor 根据 channels.rocketchat 查找 plugins.entries.rocketchat，
- * 但 npm 安装只创建 plugins.entries.openclaw-rocketchat。
- * 缺少 "rocketchat" 条目会导致 doctor 反复提示，且 doctor --fix 因验证失败而报错。
+ * 但 `openclaw plugins install` 用 npm 包名 "openclaw-rocketchat" 作为键。
+ * 插件 manifest id 已改为 "rocketchat"，这里确保 entries/installs 键名一致，
+ * 让 doctor 和验证都通过。
  */
 function ensurePluginAlias(config: Record<string, any>): void {
   config.plugins = config.plugins || {};
   config.plugins.entries = config.plugins.entries || {};
   config.plugins.installs = config.plugins.installs || {};
 
-  // entries 别名
-  if (!config.plugins.entries["rocketchat"]) {
-    config.plugins.entries["rocketchat"] = { enabled: true };
+  const entries = config.plugins.entries;
+  const installs = config.plugins.installs;
+
+  // 确保 entries.rocketchat 存在
+  if (!entries["rocketchat"]) {
+    entries["rocketchat"] = entries["openclaw-rocketchat"] || { enabled: true };
   }
 
-  // installs 别名（指向同一个安装路径，让验证通过）
-  const realInstall = config.plugins.installs["openclaw-rocketchat"];
-  if (realInstall && !config.plugins.installs["rocketchat"]) {
-    config.plugins.installs["rocketchat"] = { ...realInstall };
+  // 确保 installs.rocketchat 存在
+  if (!installs["rocketchat"] && installs["openclaw-rocketchat"]) {
+    installs["rocketchat"] = { ...installs["openclaw-rocketchat"] };
   }
 }
